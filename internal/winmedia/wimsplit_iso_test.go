@@ -34,7 +34,11 @@ func TestSplitFromISO(t *testing.T) {
 	}
 	defer f.Close()
 	src := f.(io.ReaderAt)
-	w, err := ReadWIM(src)
+	fi, err := f.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	w, err := ReadWIM(src, fi.Size())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -84,8 +84,14 @@ type WIMInfo struct {
 	blobs  []blobDesc // metadata blobs and file blobs, in on-disk order
 }
 
-// ReadWIM parses the header and blob table of the WIM in r.
-func ReadWIM(r io.ReaderAt) (*WIMInfo, error) {
+// maxBlobTable caps the blob table read into memory. Real tables are a few
+// megabytes (about 2 MB for Windows 11 with eleven editions).
+const maxBlobTable = 256 << 20
+
+// ReadWIM parses the header and blob table of the size-byte WIM in r. Every
+// size and offset taken from the file is checked against size, so a damaged
+// or hostile image cannot trigger huge allocations or reads past its end.
+func ReadWIM(r io.ReaderAt, size int64) (*WIMInfo, error) {
 	hdr := make([]byte, wimHeaderSize)
 	if _, err := r.ReadAt(hdr, 0); err != nil {
 		return nil, fmt.Errorf("read WIM header: %w", err)
@@ -110,6 +116,12 @@ func ReadWIM(r io.ReaderAt) (*WIMInfo, error) {
 	if table.Flags&^reshdrFlagMetadata != 0 || table.SizeInWIM != table.UncompressedSize {
 		return nil, errors.New("compressed WIM blob tables are not supported")
 	}
+	if !within(table, size) || table.SizeInWIM > maxBlobTable {
+		return nil, fmt.Errorf("WIM blob table (%d bytes at %d) is out of range", table.SizeInWIM, table.Offset)
+	}
+	if !within(w.xml, size) || w.xml.SizeInWIM > FAT32MaxFile {
+		return nil, errors.New("WIM XML data is out of range")
+	}
 	if table.SizeInWIM%wimBlobDescSize != 0 {
 		return nil, fmt.Errorf("WIM blob table size %d is not a multiple of %d", table.SizeInWIM, wimBlobDescSize)
 	}
@@ -128,6 +140,8 @@ func ReadWIM(r io.ReaderAt) (*WIMInfo, error) {
 			return nil, errors.New("WIM uses solid compression and cannot be split")
 		case d.Res.Flags&reshdrFlagSpanned != 0:
 			return nil, errors.New("WIM contains spanned resources")
+		case !within(d.Res, size):
+			return nil, fmt.Errorf("WIM resource at %d (%d bytes) lies outside the file", d.Res.Offset, d.Res.SizeInWIM)
 		}
 		w.blobs = append(w.blobs, d)
 	}
@@ -144,6 +158,11 @@ func ReadWIM(r io.ReaderAt) (*WIMInfo, error) {
 		return cmpU64(a.Res.Offset, b.Res.Offset)
 	})
 	return w, nil
+}
+
+// within reports whether a resource lies inside a file of the given size.
+func within(r reshdr, size int64) bool {
+	return r.Offset <= uint64(size) && r.SizeInWIM <= uint64(size)-r.Offset
 }
 
 func cmpU64(a, b uint64) int {
