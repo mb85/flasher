@@ -2,6 +2,7 @@ package drives
 
 import (
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -169,7 +170,8 @@ func list() ([]Drive, error) {
 		}
 		if isLoop {
 			d.Bus = "loop"
-			d.Model = objs.str(p, ifLoop, "BackingFile")
+			d.Vendor = "Loop"
+			d.Model = filepath.Base(objs.str(p, ifLoop, "BackingFile"))
 		} else {
 			d.Vendor = objs.str(drive, ifDrive, "Vendor")
 			d.Model = objs.str(drive, ifDrive, "Model")

@@ -1,42 +1,35 @@
+// Command flasher is the desktop app for writing images to USB drives.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"os"
 
-	app "go.hasen.dev/shirei/app"
+	"go.hasen.dev/shirei/app"
+	"go.hasen.dev/shirei/ext/darkmode"
+	"go.hasen.dev/shirei/ext/window"
 
-	. "go.hasen.dev/shirei"
 	. "go.hasen.dev/shirei/widgets"
+
+	"flasher/internal/ui"
 )
 
-var progress float32
-
 func main() {
-	png := flag.String("png", "", "render the window to a PNG and exit")
-	flag.Parse()
-	if *png != "" {
-		// Headless renders must wait for the font scan or no text is drawn.
-		InitFontSubsystem()
-		WaitForSystemFontScan()
-		if err := RenderToPNG(*png, 480, 160, root); err != nil {
-			panic(err)
-		}
-		return
+	loop := flag.Bool("include-loop", false, "list loop devices as targets (for testing)")
+	flag.Usage = func() {
+		fmt.Fprintln(os.Stderr, "usage: flasher [-include-loop] [IMAGE]")
+		flag.PrintDefaults()
 	}
-	app.SetupWindow("Flasher", 480, 160)
-	app.Run(root)
-}
+	flag.Parse()
 
-func root() {
-	Container(Attrs(Viewport, Pad(20), Gap(12)), func() {
-		Label("Flasher spike", FontSize(20), FontWeight(WeightBold))
-		ProgressBar(progress)
-		Container(Attrs(Row, CrossMid, Gap(10)), func() {
-			if Button(SymIPlus, "Advance") {
-				progress = min(progress+0.1, 1)
-			}
-			Label(fmt.Sprintf("%.0f%%", progress*100))
-		})
+	a := ui.New(ui.Options{IncludeLoop: *loop, Image: flag.Arg(0)})
+	app.SetupWindow("Flasher", 840, 460)
+	window.SetMinSize(720, 420)
+	app.SetupDrive()
+	a.Start()
+	app.Run(func() {
+		SetDarkMode(darkmode.OSDarkMode())
+		a.Root()
 	})
 }

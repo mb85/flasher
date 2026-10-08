@@ -21,6 +21,8 @@ require (
 	github.com/go-text/typesetting v0.3.4 // indirect
 	github.com/jezek/xgb v1.1.1 // indirect
 	go.hasen.dev/generic v0.1.8 // indirect
+	go.hasen.dev/shirei/ext/darkmode v0.8.0 // indirect
+	go.hasen.dev/shirei/ext/window v0.8.0 // indirect
 	go.hasen.dev/udplib v0.1.0 // indirect
 	golang.org/x/image v0.43.0 // indirect
 	golang.org/x/text v0.38.0 // indirect

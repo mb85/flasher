@@ -17,6 +17,7 @@ import (
 	"flasher/internal/flash"
 	"flasher/internal/plan"
 	"flasher/internal/source"
+	"flasher/internal/units"
 )
 
 const usage = `usage:
@@ -65,9 +66,9 @@ func info(args []string) error {
 	if img.Label != "" {
 		fmt.Printf("  label: %s\n", img.Label)
 	}
-	fmt.Printf("  file size: %s\n", humanBytes(img.FileSize))
+	fmt.Printf("  file size: %s\n", units.Bytes(img.FileSize))
 	if img.Size >= 0 {
-		fmt.Printf("  image size: %s\n", humanBytes(img.Size))
+		fmt.Printf("  image size: %s\n", units.Bytes(img.Size))
 	} else {
 		fmt.Println("  image size: unknown until decompressed")
 	}
@@ -88,7 +89,7 @@ func list(args []string) error {
 		return nil
 	}
 	for _, d := range ds {
-		fmt.Printf("%-22s %9s  %s\n", d.Path, humanBytes(d.Size), d.Describe())
+		fmt.Printf("%-22s %9s  %s\n", d.Path, units.Bytes(d.Size), d.Describe())
 	}
 	return nil
 }
@@ -122,7 +123,7 @@ func flashCmd(args []string) error {
 		if d.IsSystem {
 			return fmt.Errorf("%s holds the running system and will not be overwritten", d.Path)
 		}
-		fmt.Printf("Writing %s (%s)\n     to %s, %s %s\n", img.Path, img.Description(), d.Path, humanBytes(d.Size), d.Describe())
+		fmt.Printf("Writing %s (%s)\n     to %s, %s %s\n", img.Path, img.Description(), d.Path, units.Bytes(d.Size), d.Describe())
 		if !*yes && !confirm(fmt.Sprintf("Everything on %s will be erased. Continue?", d.Path)) {
 			return errors.New("cancelled")
 		}
@@ -170,25 +171,12 @@ func confirm(q string) bool {
 }
 
 func printProgress(p flash.Progress) {
-	line := fmt.Sprintf("%-9s %5.1f%%  %s", p.Stage, p.Fraction*100, humanBytes(p.Bytes))
+	line := fmt.Sprintf("%-9s %5.1f%%  %s", p.Stage, p.Fraction*100, units.Bytes(p.Bytes))
 	if p.BytesPerSec > 0 {
-		line += fmt.Sprintf("  %s/s", humanBytes(int64(p.BytesPerSec)))
+		line += fmt.Sprintf("  %s/s", units.Bytes(int64(p.BytesPerSec)))
 	}
 	if p.ETA > 0 {
-		line += fmt.Sprintf("  %s left", p.ETA.Round(time.Second))
+		line += "  " + units.Duration(p.ETA) + " left"
 	}
 	fmt.Printf("\r%-60s", line)
-}
-
-func humanBytes(n int64) string {
-	const unit = 1000
-	if n < unit {
-		return fmt.Sprintf("%d B", n)
-	}
-	div, exp := int64(unit), 0
-	for m := n / unit; m >= unit; m /= unit {
-		div *= unit
-		exp++
-	}
-	return fmt.Sprintf("%.1f %cB", float64(n)/float64(div), "kMGTPE"[exp])
 }
