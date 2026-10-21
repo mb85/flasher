@@ -125,7 +125,7 @@ func (a *App) imageStep() {
 	}
 	NextAccessName("choose_image")
 	NextButtonDisabled(a.picking)
-	if Button(SymFile, label) {
+	if Button(symDisc, label) {
 		a.pickImage()
 	}
 }
