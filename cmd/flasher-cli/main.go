@@ -31,7 +31,8 @@ DRIVE is a path shown by "list", such as /dev/sdb or \\.\PhysicalDrive2
 With -to-file the image is written into a regular file instead, which is
 created at -size bytes if it does not exist.
 With -copy a Linux ISO's files are copied to a FAT32 partition that boots
-on UEFI, instead of the ISO being written as it is. -persistence adds a
+on UEFI, like Rufus's ISO mode, instead of the ISO being written as it is
+(DD mode). -persistence adds a
 partition of SIZE (such as 8GB) where an Ubuntu or Debian live system
 keeps its changes. "info" says whether an ISO supports these.
 `

@@ -101,9 +101,9 @@ func (a *App) imageStep() {
 			NextAccessName("write_mode")
 			OptionGroup(&a.copyFiles, func() {
 				NextAccessName("write_as_is")
-				OptionButton("Write it as it is", false)
+				OptionButton("Write it as is (DD mode)", false)
 				NextAccessName("copy_files")
-				OptionButton("Copy its files to FAT32", true)
+				OptionButton("Copy its files (ISO mode)", true)
 			})
 			if a.copyFiles {
 				Label("Boots on UEFI computers only, and the drive stays usable for other files.", muted())
