@@ -18,7 +18,7 @@ import (
 // the confirmation asks the user to double-check.
 const bigDrive = 64e9
 
-func muted() TextStyleFn  { return TextColorVec(CurrentColorScheme.List.Muted) }
+func muted() TextStyleFn   { return TextColorVec(CurrentColorScheme.List.Muted) }
 func errText() TextStyleFn { return TextColorVec(CurrentColorScheme.List.Error) }
 
 // Root is the frame function.
@@ -195,7 +195,7 @@ func (a *App) confirmModal() {
 	Modal(440, func() { a.confirming = false }, func() {
 		Label("Erase this drive?", FontSize(17), FontWeight(WeightSemibold))
 		Label(fmt.Sprintf("%s, %s (%s)", d.Name(), units.Bytes(d.Size), d.Path), FontWeight(WeightSemibold))
-		Label("Everything on it will be replaced by "+filepath.Base(a.img.Path)+".")
+		Label("Everything on it will be replaced by " + filepath.Base(a.img.Path) + ".")
 		if len(d.Mounts) > 0 {
 			Label("Its volumes will be unmounted first: "+strings.Join(d.Mounts, ", "), muted())
 		}

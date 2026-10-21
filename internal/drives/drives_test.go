@@ -25,7 +25,21 @@ func TestEligible(t *testing.T) {
 			t.Errorf("%s: with All %v, want %v", c.name, got, c.all)
 		}
 	}
-	if !(Drive{Bus: "loop", Size: 1}).eligible(Options{IncludeLoop: true}) {
-		t.Error("loop devices should appear with IncludeLoop")
+	if !(Drive{Bus: "loop", Size: 1}).eligible(Options{IncludeVirtual: true}) {
+		t.Error("loop devices should appear with IncludeVirtual")
+	}
+}
+
+func TestNormalisePath(t *testing.T) {
+	for in, want := range map[string]string{
+		"/dev/sdb":           "/dev/sdb",
+		"sdb":                "/dev/sdb",
+		"PhysicalDrive2":     `\\.\PhysicalDrive2`,
+		"//./PhysicalDrive2": `\\.\PhysicalDrive2`,
+		`\\.\PhysicalDrive2`: `\\.\PhysicalDrive2`,
+	} {
+		if got := normalisePath(in); got != want {
+			t.Errorf("normalisePath(%q) = %q, want %q", in, got, want)
+		}
 	}
 }

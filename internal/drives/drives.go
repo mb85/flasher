@@ -51,14 +51,15 @@ func (d Drive) Describe() string {
 type Options struct {
 	// All includes fixed and system drives as well as removable ones.
 	All bool
-	// IncludeLoop lists loop devices, which are handy for testing.
-	IncludeLoop bool
+	// IncludeVirtual lists loop devices on Linux and attached VHDs on
+	// Windows, which stand in for USB drives when testing.
+	IncludeVirtual bool
 }
 
 // eligible decides whether a drive appears in the default list.
 func (d Drive) eligible(opts Options) bool {
-	if d.Bus == "loop" {
-		return opts.IncludeLoop
+	if d.Bus == "loop" || d.Bus == "vhd" {
+		return opts.IncludeVirtual
 	}
 	if opts.All {
 		return true
@@ -97,10 +98,25 @@ func Find(path string, opts Options) (Drive, error) {
 	if err != nil {
 		return Drive{}, err
 	}
+	want := normalisePath(path)
 	for _, d := range ds {
-		if strings.EqualFold(d.Path, path) {
+		if strings.EqualFold(d.Path, want) {
 			return d, nil
 		}
 	}
 	return Drive{}, fmt.Errorf("%w: %s", ErrNotFound, path)
+}
+
+// normalisePath accepts the short and slash-swapped forms people type:
+// "sdb" for /dev/sdb, and "PhysicalDrive2" or "//./PhysicalDrive2" for
+// \\.\PhysicalDrive2.
+func normalisePath(p string) string {
+	q := strings.ReplaceAll(p, "/", `\`)
+	if strings.HasPrefix(strings.ToLower(strings.TrimPrefix(q, `\\.\`)), "physicaldrive") {
+		return `\\.\` + strings.TrimPrefix(q, `\\.\`)
+	}
+	if !strings.Contains(p, "/") && !strings.Contains(p, `\`) {
+		return "/dev/" + p
+	}
+	return p
 }

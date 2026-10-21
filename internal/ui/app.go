@@ -20,8 +20,8 @@ import (
 
 // Options configures the app at start-up.
 type Options struct {
-	IncludeLoop bool   // list loop devices, for testing
-	Image       string // image to preselect, from the command line
+	IncludeVirtual bool   // list loop devices and VHDs, for testing
+	Image          string // image to preselect, from the command line
 }
 
 type phase int
@@ -91,7 +91,7 @@ func (a *App) pollDrives() {
 func (a *App) refreshDrives() {
 	var showAll bool
 	WithFrameLock(func() { showAll = a.showAll })
-	ds, err := drives.List(drives.Options{All: showAll, IncludeLoop: a.opts.IncludeLoop})
+	ds, err := drives.List(drives.Options{All: showAll, IncludeVirtual: a.opts.IncludeVirtual})
 	WithFrameLock(func() {
 		a.drives = ds
 		a.driveErr = ""

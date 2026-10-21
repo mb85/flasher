@@ -22,8 +22,8 @@ import (
 
 const usage = `usage:
   flasher-cli info IMAGE
-  flasher-cli list [-all] [-include-loop]
-  flasher-cli flash [-no-verify] [-yes] [-include-loop] IMAGE DRIVE
+  flasher-cli list [-all] [-include-virtual]
+  flasher-cli flash [-no-verify] [-yes] [-include-virtual] IMAGE DRIVE
   flasher-cli flash -to-file [-size BYTES] [-no-verify] IMAGE FILE
 
 DRIVE is a path shown by "list", such as /dev/sdb or \\.\PhysicalDrive2.
@@ -78,9 +78,11 @@ func info(args []string) error {
 func list(args []string) error {
 	fs := flag.NewFlagSet("list", flag.ExitOnError)
 	all := fs.Bool("all", false, "include internal and system drives")
-	loop := fs.Bool("include-loop", false, "include loop devices (for testing)")
+	var virtual bool
+	fs.BoolVar(&virtual, "include-virtual", false, "include loop devices and VHDs (for testing)")
+	fs.BoolVar(&virtual, "include-loop", false, "same as -include-virtual")
 	fs.Parse(args)
-	ds, err := drives.List(drives.Options{All: *all, IncludeLoop: *loop})
+	ds, err := drives.List(drives.Options{All: *all, IncludeVirtual: virtual})
 	if err != nil {
 		return err
 	}
@@ -100,7 +102,9 @@ func flashCmd(args []string) error {
 	yes := fs.Bool("yes", false, "do not ask for confirmation")
 	toFile := fs.Bool("to-file", false, "write into a regular file instead of a drive")
 	size := fs.Int64("size", 0, "size of a new -to-file target in bytes")
-	loop := fs.Bool("include-loop", false, "allow loop devices as targets (for testing)")
+	var virtual bool
+	fs.BoolVar(&virtual, "include-virtual", false, "allow loop devices and VHDs as targets (for testing)")
+	fs.BoolVar(&virtual, "include-loop", false, "same as -include-virtual")
 	fs.Parse(args)
 	if fs.NArg() != 2 {
 		return errors.New("flash takes an image and a target")
@@ -116,7 +120,7 @@ func flashCmd(args []string) error {
 		dev, err = openFileTarget(target, *size, img)
 	} else {
 		var d drives.Drive
-		d, err = drives.Find(target, drives.Options{All: true, IncludeLoop: *loop})
+		d, err = drives.Find(target, drives.Options{All: true, IncludeVirtual: virtual})
 		if err != nil {
 			return err
 		}
