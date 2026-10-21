@@ -10,18 +10,16 @@ A USB and SD card image writer for Linux and Windows.
 
 ## Features
 
-- Linux ISOs, Raspberry Pi and other disk images, written byte for byte
-- Compressed images (xz, gzip, zstd, bzip2, zip) streamed with no temporary files
-- Windows 10 and 11 ISOs rebuilt as UEFI-bootable USB installers, Secure Boot included
-- Everything written is read back and verified
-- Only removable drives listed by default, never the system drive
-- Plain-language errors for unplugged drives, write protection and damaged downloads
-- A desktop app and a command-line tool
-- Light and dark themes
+- Linux ISOs, Raspberry Pi and other disk images written in "dd" mode
+- Compressed images (xz, gzip, zstd, bzip2, zip) flashed without temporary files
+- Windows 10 and 11 ISOs rebuilt as USB installers that boot on UEFI with Secure Boot on
+- Verification of everything written
+- Only removable drives listed by default for safety
+- GUI or CLI
 
 ## Build from source
 
-You need Go 1.27+. No cgo, so the Windows build cross-compiles from Linux.
+You need Go 1.27+. The Windows build cross-compiles from Linux.
 
 ```sh
 go build ./cmd/flasher                       # Linux desktop app
