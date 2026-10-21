@@ -14,7 +14,7 @@ import (
 
 // open asks xdg-desktop-portal for a file, which shows the desktop's own
 // file dialog (KDE's on Plasma, GTK's on GNOME).
-func open(title string) (string, error) {
+func open(title string, parent Parent) (string, error) {
 	conn, err := dbus.ConnectSessionBus()
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrUnavailable, err)
@@ -65,7 +65,7 @@ func open(title string) (string, error) {
 	}
 	var handle dbus.ObjectPath
 	err = conn.Object("org.freedesktop.portal.Desktop", "/org/freedesktop/portal/desktop").
-		Call("org.freedesktop.portal.FileChooser.OpenFile", 0, "", title, opts).Store(&handle)
+		Call("org.freedesktop.portal.FileChooser.OpenFile", 0, parent.Portal, title, opts).Store(&handle)
 	if err != nil {
 		return "", fmt.Errorf("%w: %v", ErrUnavailable, err)
 	}

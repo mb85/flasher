@@ -2,4 +2,4 @@
 
 package filepick
 
-func open(title string) (string, error) { return "", ErrUnavailable }
+func open(title string, parent Parent) (string, error) { return "", ErrUnavailable }

@@ -17,6 +17,17 @@ var Patterns = []string{
 	"*.img.xz", "*.iso.xz", "*.xz", "*.gz", "*.zst", "*.bz2", "*.zip",
 }
 
+// Parent identifies the window a dialog belongs to, so the dialog opens
+// over it and blocks it like any other modal dialog. The zero value opens
+// an unparented dialog.
+type Parent struct {
+	// Portal is the window identifier xdg-desktop-portal takes:
+	// "x11:<hex XID>" or "wayland:<exported handle>".
+	Portal string
+	// HWND is the owner window on Windows.
+	HWND uintptr
+}
+
 // Open blocks until the user picks a file or closes the dialog. Call it
 // from a goroutine, never from the UI frame function.
-func Open(title string) (string, error) { return open(title) }
+func Open(title string, parent Parent) (string, error) { return open(title, parent) }

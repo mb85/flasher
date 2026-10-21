@@ -175,8 +175,9 @@ func (a *App) pickImage() {
 	}
 	a.picking = true
 	start := a.browseStart()
+	parent := dialogParent()
 	go func() {
-		path, err := filepick.Open("Choose an image to flash")
+		path, err := filepick.Open("Choose an image to flash", parent)
 		WithFrameLock(func() {
 			a.picking = false
 			if errors.Is(err, filepick.ErrUnavailable) {

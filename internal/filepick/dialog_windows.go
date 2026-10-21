@@ -50,8 +50,9 @@ const (
 	ofnDontAddToRecent = 0x02000000
 )
 
-// open shows the standard Windows "Open" dialog.
-func open(title string) (string, error) {
+// open shows the standard Windows "Open" dialog, owned by parent.HWND so
+// it stays over the app window and blocks it while open.
+func open(title string, parent Parent) (string, error) {
 	// The dialog runs its own message loop and expects a single-threaded
 	// COM apartment on the calling thread.
 	runtime.LockOSThread()
@@ -65,6 +66,7 @@ func open(title string) (string, error) {
 	file := make([]uint16, 32768)
 	titlePtr, _ := windows.UTF16PtrFromString(title)
 	ofn := openFileName{
+		owner:       parent.HWND,
 		filter:      &filter[0],
 		filterIndex: 1,
 		file:        &file[0],
