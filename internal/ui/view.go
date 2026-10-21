@@ -164,6 +164,21 @@ func (a *App) driveStep() {
 	}
 }
 
+// driveWarning cautions about drives that are more likely to hold files
+// someone needs than to be a spare stick: internal ones, and USB drives
+// larger than sticks usually are.
+func driveWarning(d drives.Drive) string {
+	switch d.Bus {
+	case "usb", "sdio", "sd", "mmc", "loop", "vhd":
+	default:
+		return fmt.Sprintf("This is an internal %s drive, not a USB stick or memory card. Make sure it is the one you mean.", d.BusName())
+	}
+	if d.Size > bigDrive {
+		return fmt.Sprintf("At %s this is larger than most USB sticks, so it may be an external disk with files on it. Make sure nothing on it is needed.", units.Bytes(d.Size))
+	}
+	return ""
+}
+
 // driveDetail is the line under a drive's name: "32 GB · USB · /dev/sdb".
 func driveDetail(d drives.Drive) string {
 	parts := []string{units.Bytes(d.Size)}
@@ -229,8 +244,8 @@ func (a *App) confirmModal() {
 		case len(d.Mounts) > 0:
 			Label("Its volumes will be unmounted first: "+strings.Join(d.Mounts, ", "), muted())
 		}
-		if d.Size > bigDrive || d.Bus != "usb" && d.Bus != "sdio" && d.Bus != "loop" {
-			Label(fmt.Sprintf("This is a %s %s drive, which is unusual for a flash target. Make sure it is the right one.", units.Bytes(d.Size), d.BusName()), errText())
+		if w := driveWarning(d); w != "" {
+			Label(w, errText())
 		}
 		Container(Attrs(Row, Gap(10), MainAlign(AlignEnd), Expand), func() {
 			NextAccessName("cancel_flash")
