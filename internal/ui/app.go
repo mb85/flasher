@@ -60,6 +60,11 @@ type App struct {
 	confirming bool
 	fit        fitCheck
 
+	// Choices for Linux ISOs that can be copied file by file.
+	copyFiles bool
+	persist   bool
+	persistGB float32
+
 	phase        phase
 	opening      bool // waiting for the drive to open (and polkit to answer)
 	progress     flash.Progress
@@ -71,27 +76,65 @@ type App struct {
 }
 
 // fitCheck is the outcome of planning the image onto the chosen drive.
-// Windows media is rebuilt, so planning it is the only exact way to know it
-// fits; the plan is made in the background whenever the pair changes.
+// Windows media and copied Linux ISOs are rebuilt, so planning them is the
+// only exact way to know they fit; the plan is made in the background
+// whenever the image, drive or options change.
 type fitCheck struct {
 	key     string // image path, drive path and size the result is for
 	pending bool
 	err     string
 }
 
-func fitKey(img *source.Image, d drives.Drive) string {
-	return fmt.Sprintf("%s|%s|%d|%d", img.Path, d.Path, d.Size, d.SectorSize)
+func fitKey(img *source.Image, d drives.Drive, opts plan.Options) string {
+	return fmt.Sprintf("%s|%s|%d|%d|%v", img.Path, d.Path, d.Size, d.SectorSize, opts)
+}
+
+// rebuilt reports whether the image is laid out file by file rather than
+// written as it is, so only a plan can tell whether it fits.
+func (a *App) rebuilt() bool {
+	return a.img != nil && (a.img.Kind == source.KindWindowsISO || a.copyMode())
+}
+
+func (a *App) copyMode() bool { return a.copyFiles && a.img != nil && a.img.Linux != nil }
+
+// persistence reports whether the image can keep a live system's changes
+// when copied.
+func (a *App) persistence() bool {
+	return a.copyMode() && a.img.Linux.Persistence != source.NoPersistence
+}
+
+// maxPersistGB is the most persistence, in whole GB, that leaves room for
+// the ISO's files on d, or 0 when there is not room for the minimum.
+func (a *App) maxPersistGB(d drives.Drive) float32 {
+	files := a.img.Linux.Bytes + a.img.Linux.Bytes/32 + 256e6 // cluster slack and FAT32 overhead
+	n := (d.Size - files - 2<<20) / 1e9
+	if n*1e9 < plan.MinPersistence {
+		return 0
+	}
+	return float32(n)
+}
+
+// planOptions turns the choices made for the image into plan options.
+func (a *App) planOptions() plan.Options {
+	opts := plan.Options{CopyFiles: a.copyMode()}
+	if d, ok := a.selectedDrive(); ok && a.persist && a.persistence() {
+		if gb := min(a.persistGB, a.maxPersistGB(d)); gb >= 1 {
+			opts.Persistence = int64(gb) * 1e9
+		}
+	}
+	return opts
 }
 
 // checkFit starts planning the image onto the selected drive when that pair
-// has changed. Called on the UI thread.
+// or the options have changed. Called on the UI thread.
 func (a *App) checkFit() {
 	d, ok := a.selectedDrive()
-	if a.img == nil || !ok || a.img.Kind != source.KindWindowsISO {
+	if !ok || !a.rebuilt() {
 		a.fit = fitCheck{}
 		return
 	}
-	key := fitKey(a.img, d)
+	opts := a.planOptions()
+	key := fitKey(a.img, d, opts)
 	if a.fit.key == key {
 		return
 	}
@@ -99,7 +142,7 @@ func (a *App) checkFit() {
 	img := a.img
 	go func() {
 		msg := ""
-		p, err := plan.For(img, d.Size, d.SectorSize)
+		p, err := plan.For(img, d.Size, d.SectorSize, opts)
 		if err != nil {
 			msg = sentence(err.Error()) + "."
 		} else {
@@ -163,6 +206,7 @@ func (a *App) inspect(path string) {
 				return
 			}
 			a.img = img
+			a.copyFiles, a.persist, a.persistGB = false, false, 4
 		})
 		RequestNextFrame()
 	}()
@@ -220,7 +264,7 @@ func (a *App) problem() string {
 	switch {
 	case d.IsSystem:
 		return "This drive holds the running system."
-	case a.img.Kind == source.KindWindowsISO:
+	case a.rebuilt():
 		return a.fit.err
 	case a.img.Size > d.Size:
 		return fmt.Sprintf("The image is %s and this drive holds %s.", units.Bytes(a.img.Size), units.Bytes(d.Size))
@@ -239,14 +283,14 @@ func (a *App) startFlash() {
 	if !ok || a.img == nil {
 		return
 	}
-	img, verify := a.img, a.verify
+	img, verify, opts := a.img, a.verify, a.planOptions()
 	ctx, cancel := context.WithCancel(context.Background())
 	a.phase, a.opening, a.cancel = phaseFlashing, true, cancel
 	a.progress = flash.Progress{}
 	a.started = time.Now()
 
 	go func() {
-		err := a.run(ctx, img, d, verify)
+		err := a.run(ctx, img, d, opts, verify)
 		WithFrameLock(func() {
 			a.elapsed = time.Since(a.started)
 			a.cancel = nil
@@ -261,10 +305,10 @@ func (a *App) startFlash() {
 	}()
 }
 
-func (a *App) run(ctx context.Context, img *source.Image, d drives.Drive, verify bool) error {
+func (a *App) run(ctx context.Context, img *source.Image, d drives.Drive, opts plan.Options, verify bool) error {
 	// Plan before opening: opening a drive on Windows already clears its
 	// partition table, and a plan can still fail (an image too large).
-	p, err := plan.For(img, d.Size, d.SectorSize)
+	p, err := plan.For(img, d.Size, d.SectorSize, opts)
 	if err != nil {
 		return err
 	}

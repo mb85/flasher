@@ -23,13 +23,17 @@ import (
 const usage = `usage:
   flasher-cli info IMAGE
   flasher-cli list [-all] [-include-virtual]
-  flasher-cli flash [-no-verify] [-yes] [-include-virtual] IMAGE DRIVE
-  flasher-cli flash -to-file [-size BYTES] [-no-verify] IMAGE FILE
+  flasher-cli flash [-no-verify] [-yes] [-include-virtual] [-copy [-persistence SIZE]] IMAGE DRIVE
+  flasher-cli flash -to-file [-size BYTES] [-no-verify] [-copy [-persistence SIZE]] IMAGE FILE
 
 DRIVE is a path shown by "list", such as /dev/sdb or \\.\PhysicalDrive2
 ("sdb", "PhysicalDrive2" and "disk2" work too).
 With -to-file the image is written into a regular file instead, which is
 created at -size bytes if it does not exist.
+With -copy a Linux ISO's files are copied to a FAT32 partition that boots
+on UEFI, instead of the ISO being written as it is. -persistence adds a
+partition of SIZE (such as 8GB) where an Ubuntu or Debian live system
+keeps its changes. "info" says whether an ISO supports these.
 `
 
 func main() {
@@ -73,6 +77,15 @@ func info(args []string) error {
 	} else {
 		fmt.Println("  image size: unknown until decompressed")
 	}
+	if l := img.Linux; l != nil {
+		fmt.Printf("  -copy: %d files, %s\n", l.Files, units.Bytes(l.Bytes))
+		switch l.Persistence {
+		case source.Casper:
+			fmt.Println("  -persistence: yes (casper)")
+		case source.LiveBoot:
+			fmt.Println("  -persistence: yes (live-boot)")
+		}
+	}
 	return nil
 }
 
@@ -103,6 +116,8 @@ func flashCmd(args []string) error {
 	yes := fs.Bool("yes", false, "do not ask for confirmation")
 	toFile := fs.Bool("to-file", false, "write into a regular file instead of a drive")
 	size := fs.Int64("size", 0, "size of a new -to-file target in bytes")
+	copyFiles := fs.Bool("copy", false, "copy a Linux ISO's files to FAT32 rather than writing it as it is")
+	persistence := fs.String("persistence", "", "size of a partition for a live system's changes, with -copy")
 	var virtual bool
 	fs.BoolVar(&virtual, "include-virtual", false, "allow loop devices and VHDs as targets (for testing)")
 	fs.BoolVar(&virtual, "include-loop", false, "same as -include-virtual")
@@ -115,6 +130,10 @@ func flashCmd(args []string) error {
 		return err
 	}
 	target := fs.Arg(1)
+	opts, err := planOptions(img, *copyFiles, *persistence)
+	if err != nil {
+		return err
+	}
 
 	var dev device.Device
 	var p *plan.Plan
@@ -123,7 +142,7 @@ func flashCmd(args []string) error {
 			return err
 		}
 		defer dev.Close()
-		if p, err = plan.For(img, dev.Size(), dev.SectorSize()); err != nil {
+		if p, err = plan.For(img, dev.Size(), dev.SectorSize(), opts); err != nil {
 			return err
 		}
 	} else {
@@ -135,12 +154,18 @@ func flashCmd(args []string) error {
 			return fmt.Errorf("%s holds the running system and will not be overwritten", d.Path)
 		}
 		fmt.Printf("Writing %s (%s)\n     to %s, %s %s\n", img.Path, img.Description(), d.Ref(), units.Bytes(d.Size), d.Describe())
+		if opts.CopyFiles {
+			fmt.Println("Copying the ISO's files to a FAT32 partition, which boots on UEFI only.")
+		}
+		if opts.Persistence > 0 {
+			fmt.Printf("Adding a %s partition for the live system's changes.\n", units.Bytes(opts.Persistence))
+		}
 		if !*yes && !confirm(fmt.Sprintf("Everything on %s (%s) will be erased. Continue?", d.Name(), d.Ref())) {
 			return errors.New("cancelled")
 		}
 		// Plan before opening: opening a drive on Windows already clears
 		// its partition table, and a plan can still fail.
-		if p, err = plan.For(img, d.Size, d.SectorSize); err != nil {
+		if p, err = plan.For(img, d.Size, d.SectorSize, opts); err != nil {
 			return err
 		}
 		if dev, err = device.Open(d); err != nil {
@@ -165,6 +190,31 @@ func flashCmd(args []string) error {
 	}
 	fmt.Printf("Done in %s.\n", time.Since(start).Round(time.Second))
 	return nil
+}
+
+func planOptions(img *source.Image, copyFiles bool, persistence string) (plan.Options, error) {
+	opts := plan.Options{CopyFiles: copyFiles}
+	if copyFiles && img.Linux == nil {
+		return opts, errors.New("-copy works with Linux ISOs whose files all fit on FAT32 and that boot on UEFI, and this image is not one")
+	}
+	if persistence == "" {
+		return opts, nil
+	}
+	if !copyFiles {
+		return opts, errors.New("-persistence needs -copy")
+	}
+	if img.Linux.Persistence == source.NoPersistence {
+		return opts, errors.New("this ISO does not support persistence; it works with Ubuntu (casper) and Debian (live-boot) live ISOs")
+	}
+	n, err := units.ParseBytes(persistence)
+	if err != nil {
+		return opts, err
+	}
+	if n < plan.MinPersistence {
+		return opts, fmt.Errorf("-persistence must be at least %s", units.Bytes(plan.MinPersistence))
+	}
+	opts.Persistence = n
+	return opts, nil
 }
 
 func openFileTarget(path string, size int64, img *source.Image) (device.Device, error) {

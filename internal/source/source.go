@@ -69,6 +69,9 @@ type Image struct {
 	Size int64
 	// Label is the ISO volume label, when there is one.
 	Label string
+	// Linux is set for a Linux ISO that can be copied file by file as
+	// well as written byte for byte.
+	Linux *LinuxISO
 
 	zipEntry string // the image inside a zip archive
 }
@@ -134,13 +137,9 @@ func Inspect(p string) (*Image, error) {
 	}
 
 	img.Kind = classify(head)
-	if img.Kind == KindPlainISO && img.Compression == None {
-		label, ok, err := windowsISO(p)
-		if err != nil {
+	if (img.Kind == KindPlainISO || img.Kind == KindHybridISO) && img.Compression == None {
+		if err := inspectISO(img); err != nil {
 			return nil, err
-		}
-		if ok {
-			img.Kind, img.Label = KindWindowsISO, label
 		}
 	}
 	return img, nil

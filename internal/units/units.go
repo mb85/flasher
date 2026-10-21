@@ -3,6 +3,8 @@ package units
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,4 +33,29 @@ func Duration(d time.Duration) string {
 	}
 	h := int(d.Hours())
 	return fmt.Sprintf("%d h %d min", h, int(d.Minutes())-60*h)
+}
+
+// ParseBytes reads a size such as "8GB", "8G", "512MiB" or "1000000".
+// Bare prefixes are decimal, like Bytes; an "iB" suffix makes them binary.
+func ParseBytes(s string) (int64, error) {
+	t := strings.TrimSpace(s)
+	base := int64(1000)
+	switch {
+	case strings.HasSuffix(t, "iB"):
+		base, t = 1024, strings.TrimSuffix(t, "iB")
+	case strings.HasSuffix(t, "B"):
+		t = strings.TrimSuffix(t, "B")
+	}
+	mult := int64(1)
+	if i := strings.IndexAny(t, "kKMGT"); i >= 0 && i == len(t)-1 {
+		for range strings.Index("KMGT", strings.ToUpper(t[i:])) + 1 {
+			mult *= base
+		}
+		t = t[:i]
+	}
+	f, err := strconv.ParseFloat(strings.TrimSpace(t), 64)
+	if err != nil || f < 0 {
+		return 0, fmt.Errorf("%q is not a size", s)
+	}
+	return int64(f * float64(mult)), nil
 }

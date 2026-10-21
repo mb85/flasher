@@ -20,3 +20,16 @@ func TestDuration(t *testing.T) {
 		}
 	}
 }
+
+func TestParseBytes(t *testing.T) {
+	for in, want := range map[string]int64{"8GB": 8e9, "8G": 8e9, "512MiB": 512 << 20, "1.5 GB": 1.5e9, "1000000": 1e6, "2TiB": 2 << 40, "4k": 4000} {
+		if got, err := ParseBytes(in); err != nil || got != want {
+			t.Errorf("ParseBytes(%q) = %d, %v, want %d", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"", "GB", "-1G", "8X"} {
+		if _, err := ParseBytes(in); err == nil {
+			t.Errorf("ParseBytes(%q) succeeded", in)
+		}
+	}
+}

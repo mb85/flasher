@@ -9,6 +9,7 @@ import (
 
 	"flasher/internal/drives"
 	"flasher/internal/flash"
+	"flasher/internal/plan"
 	"flasher/internal/source"
 )
 
@@ -19,7 +20,9 @@ var (
 	ssd    = drives.Drive{Path: "/dev/nvme1n1", Vendor: "Samsung", Model: "990 PRO", Size: 2e12, Bus: "nvme"}
 	pi     = &source.Image{Path: "/images/raspios-lite.img.xz", FileSize: 480e6, Compression: source.Xz, Kind: source.KindRaw, Size: -1}
 	win    = &source.Image{Path: "/images/Win11_25H2_English_x64.iso", FileSize: 8_486_862_848, Kind: source.KindWindowsISO, Size: 8_486_862_848, Label: "CCCOMA_X64FRE_EN-GB_DV9"}
-	big    = &source.Image{Path: "/images/huge.img", FileSize: 40e9, Kind: source.KindRaw, Size: 40e9}
+	ubuntu = &source.Image{Path: "/images/ubuntu-26.04-desktop-amd64.iso", FileSize: 6_518_974_464, Kind: source.KindHybridISO, Size: 6_518_974_464, Label: "Ubuntu 26.04 amd64",
+		Linux: &source.LinuxISO{Files: 950, Bytes: 6_511_043_748, Persistence: source.Casper}}
+	big = &source.Image{Path: "/images/huge.img", FileSize: 40e9, Kind: source.KindRaw, Size: 40e9}
 )
 
 func TestSnapshots(t *testing.T) {
@@ -36,12 +39,20 @@ func TestSnapshots(t *testing.T) {
 			return &App{verify: true, img: pi, drives: []drives.Drive{stick, card}, selected: stick.Path}
 		}},
 		{"windows_iso", false, func() *App {
-			return &App{verify: true, img: win, drives: []drives.Drive{stick}, selected: stick.Path, fit: fitCheck{key: fitKey(win, stick)}}
+			return &App{verify: true, img: win, drives: []drives.Drive{stick}, selected: stick.Path, fit: fitCheck{key: fitKey(win, stick, plan.Options{})}}
 		}},
 		{"windows_too_small", false, func() *App {
 			small := drives.Drive{Path: "/dev/sdc", Vendor: "Kingston", Model: "DataTraveler", Size: 8e9, Bus: "usb", Removable: true}
 			return &App{verify: true, img: win, drives: []drives.Drive{small}, selected: small.Path,
-				fit: fitCheck{key: fitKey(win, small), err: "The drive is too small for this Windows image: its files need 8.5 GB and the drive holds 8.0 GB."}}
+				fit: fitCheck{key: fitKey(win, small, plan.Options{}), err: "The drive is too small for this Windows image: its files need 8.5 GB and the drive holds 8.0 GB."}}
+		}},
+		{"linux_iso", false, func() *App {
+			return &App{verify: true, img: ubuntu, drives: []drives.Drive{stick}, selected: stick.Path}
+		}},
+		{"linux_copy", false, func() *App {
+			a := &App{verify: true, img: ubuntu, drives: []drives.Drive{stick}, selected: stick.Path, copyFiles: true, persist: true, persistGB: 8}
+			a.fit = fitCheck{key: fitKey(ubuntu, stick, a.planOptions())}
+			return a
 		}},
 		{"too_large", false, func() *App {
 			return &App{verify: true, img: big, drives: []drives.Drive{stick}, selected: stick.Path}

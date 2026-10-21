@@ -11,6 +11,7 @@ A USB and SD card image writer for Linux and Windows.
 ## Features
 
 - Linux ISOs, Raspberry Pi and other disk images written in "dd" mode
+- Linux ISOs optionally copied to FAT32 instead, with room to keep changes on Ubuntu and Debian live systems
 - Compressed images (xz, gzip, zstd, bzip2, zip) flashed without temporary files
 - Windows 10 and 11 ISOs rebuilt as USB installers that boot on UEFI with Secure Boot on
 - Verification of everything written

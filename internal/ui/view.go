@@ -94,8 +94,20 @@ func (a *App) imageStep() {
 		if a.img.Kind == source.KindWindowsISO {
 			Label("It will be written as a UEFI-bootable FAT32 installer.", muted())
 		}
-		if a.img.Kind == source.KindPlainISO {
+		if a.img.Kind == source.KindPlainISO && !a.copyMode() {
 			Label("This ISO has no partition table, so it will probably not boot from USB.", errText())
+		}
+		if a.img.Linux != nil {
+			NextAccessName("write_mode")
+			OptionGroup(&a.copyFiles, func() {
+				NextAccessName("write_as_is")
+				OptionButton("Write it as it is", false)
+				NextAccessName("copy_files")
+				OptionButton("Copy its files to FAT32", true)
+			})
+			if a.copyFiles {
+				Label("Boots on UEFI computers only, and the drive stays usable for other files.", muted())
+			}
 		}
 	default:
 		Label("Choose a disk image or ISO. Compressed images are fine.", muted())
@@ -205,6 +217,8 @@ func (a *App) flashStep() {
 		// shown below instead
 	case a.fit.pending:
 		Label("Checking that the image fits…", muted())
+	case a.copyMode():
+		Label(fmt.Sprintf("Ready to copy the files in %s to %s (%s).", filepath.Base(a.img.Path), d.Name(), d.Ref()), muted())
 	default:
 		Label(fmt.Sprintf("Ready to write %s to %s (%s).", filepath.Base(a.img.Path), d.Name(), d.Ref()), muted())
 	}
@@ -212,6 +226,20 @@ func (a *App) flashStep() {
 		Label(p, errText())
 	}
 	Element(Attrs(Grow(1)))
+	if a.persistence() {
+		NextAccessName("persist")
+		CheckBox(&a.persist, "Keep changes between boots")
+		if a.persist && ok {
+			if most := a.maxPersistGB(d); most >= 1 {
+				a.persistGB = min(max(a.persistGB, 1), most)
+				Label(fmt.Sprintf("Room for changes: %.0f GB", a.persistGB), muted())
+				NextAccessName("persist_size")
+				Slider(&a.persistGB, SliderAttrs{Min: 1, Max: most, Step: 1})
+			} else {
+				Label("The drive has no room left for changes.", errText())
+			}
+		}
+	}
 	NextAccessName("verify")
 	CheckBox(&a.verify, "Verify after writing")
 	NextButtonType(ButtonPrimary)
