@@ -110,6 +110,9 @@ func lockVolume(v drives.Volume) (windows.Handle, error) {
 }
 
 func volumeLabel(v drives.Volume) string {
+	if s := v.Describe(); s != "" {
+		return s
+	}
 	if len(v.Paths) > 0 {
 		return v.Paths[0]
 	}

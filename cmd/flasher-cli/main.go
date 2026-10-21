@@ -26,7 +26,8 @@ const usage = `usage:
   flasher-cli flash [-no-verify] [-yes] [-include-virtual] IMAGE DRIVE
   flasher-cli flash -to-file [-size BYTES] [-no-verify] IMAGE FILE
 
-DRIVE is a path shown by "list", such as /dev/sdb or \\.\PhysicalDrive2.
+DRIVE is a path shown by "list", such as /dev/sdb or \\.\PhysicalDrive2
+("sdb", "PhysicalDrive2" and "disk2" work too).
 With -to-file the image is written into a regular file instead, which is
 created at -size bytes if it does not exist.
 `
@@ -127,8 +128,8 @@ func flashCmd(args []string) error {
 		if d.IsSystem {
 			return fmt.Errorf("%s holds the running system and will not be overwritten", d.Path)
 		}
-		fmt.Printf("Writing %s (%s)\n     to %s, %s %s\n", img.Path, img.Description(), d.Path, units.Bytes(d.Size), d.Describe())
-		if !*yes && !confirm(fmt.Sprintf("Everything on %s will be erased. Continue?", d.Path)) {
+		fmt.Printf("Writing %s (%s)\n     to %s, %s %s\n", img.Path, img.Description(), d.Ref(), units.Bytes(d.Size), d.Describe())
+		if !*yes && !confirm(fmt.Sprintf("Everything on %s (%s) will be erased. Continue?", d.Name(), d.Ref())) {
 			return errors.New("cancelled")
 		}
 		dev, err = device.Open(d)

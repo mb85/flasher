@@ -122,14 +122,19 @@ func list() ([]Drive, error) {
 		return nil, err
 	}
 
-	// Mounted filesystems and active swap, keyed by the whole disk under them.
+	// Mounted filesystems, volume labels and active swap, keyed by the
+	// whole disk under them.
 	mounts := map[dbus.ObjectPath][]string{}
+	labels := map[dbus.ObjectPath][]string{}
 	system := map[dbus.ObjectPath]bool{}
 	for p, ifaces := range objs {
 		if _, ok := ifaces[ifBlock]; !ok {
 			continue
 		}
 		disk := objs.WholeDisk(p)
+		if l := objs.str(p, ifBlock, "IdLabel"); l != "" {
+			labels[disk] = append(labels[disk], l)
+		}
 		for _, m := range objs.MountPoints(p) {
 			mounts[disk] = append(mounts[disk], m)
 			if slices.Contains(systemMounts, m) {
@@ -182,6 +187,8 @@ func list() ([]Drive, error) {
 			}
 		}
 		sort.Strings(d.Mounts)
+		// A hybrid ISO repeats its label on the whole disk and partition 1.
+		d.Labels = slices.Compact(slices.Sorted(slices.Values(labels[p])))
 		out = append(out, d)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })

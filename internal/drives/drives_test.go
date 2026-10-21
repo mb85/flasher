@@ -37,9 +37,32 @@ func TestNormalisePath(t *testing.T) {
 		"PhysicalDrive2":     `\\.\PhysicalDrive2`,
 		"//./PhysicalDrive2": `\\.\PhysicalDrive2`,
 		`\\.\PhysicalDrive2`: `\\.\PhysicalDrive2`,
+		"disk2":              `\\.\PhysicalDrive2`,
+		"Disk 12":            `\\.\PhysicalDrive12`,
+		"diskette":           "/dev/diskette",
 	} {
 		if got := normalisePath(in); got != want {
 			t.Errorf("normalisePath(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestNames(t *testing.T) {
+	for _, c := range []struct {
+		d         Drive
+		name, ref string
+	}{
+		{Drive{Path: "/dev/sdb", Vendor: "SanDisk", Model: "Ultra"}, "SanDisk Ultra", "/dev/sdb"},
+		{Drive{Path: "/dev/sda", Vendor: "SanDisk", Model: "SanDisk SSD PLUS 240GB"}, "SanDisk SSD PLUS 240GB", "/dev/sda"},
+		{Drive{Path: `\\.\PhysicalDrive2`, Vendor: "Msft", Model: "Virtual Disk"}, "Msft Virtual Disk", "Disk 2"},
+		{Drive{Path: "/dev/sdc", Bus: "usb"}, "USB drive", "/dev/sdc"},
+		{Drive{Path: "/dev/sdd"}, "Unnamed drive", "/dev/sdd"},
+	} {
+		if got := c.d.Name(); got != c.name {
+			t.Errorf("Name() = %q, want %q", got, c.name)
+		}
+		if got := c.d.Ref(); got != c.ref {
+			t.Errorf("Ref() = %q, want %q", got, c.ref)
 		}
 	}
 }

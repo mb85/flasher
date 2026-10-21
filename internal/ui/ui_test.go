@@ -13,12 +13,13 @@ import (
 )
 
 var (
-	stick = drives.Drive{Path: "/dev/sdb", Vendor: "SanDisk", Model: "Ultra", Size: 32e9, Bus: "usb", Removable: true}
-	card  = drives.Drive{Path: "/dev/mmcblk0", Vendor: "", Model: "SD card", Size: 64e9, Bus: "sdio", Mounts: []string{"/run/media/user/boot"}}
-	ssd   = drives.Drive{Path: "/dev/nvme1n1", Vendor: "Samsung", Model: "990 PRO", Size: 2e12, Bus: "nvme"}
-	pi    = &source.Image{Path: "/images/raspios-lite.img.xz", FileSize: 480e6, Compression: source.Xz, Kind: source.KindRaw, Size: -1}
-	win   = &source.Image{Path: "/images/Win11_25H2_English_x64.iso", FileSize: 8_486_862_848, Kind: source.KindWindowsISO, Size: 8_486_862_848, Label: "CCCOMA_X64FRE_EN-GB_DV9"}
-	big   = &source.Image{Path: "/images/huge.img", FileSize: 40e9, Kind: source.KindRaw, Size: 40e9}
+	stick  = drives.Drive{Path: "/dev/sdb", Vendor: "SanDisk", Model: "Ultra", Size: 32e9, Bus: "usb", Removable: true}
+	card   = drives.Drive{Path: "/dev/mmcblk0", Vendor: "", Model: "SD card", Size: 64e9, Bus: "sdio", Mounts: []string{"/run/media/user/bootfs"}, Labels: []string{"bootfs", "rootfs"}}
+	winUSB = drives.Drive{Path: `\\.\PhysicalDrive2`, ID: "2", Vendor: "SanDisk", Model: "SanDisk 3.2 Gen 1", Size: 250e9, Bus: "usb", Mounts: []string{`E:\`}, Labels: []string{"SSD (E:)"}}
+	ssd    = drives.Drive{Path: "/dev/nvme1n1", Vendor: "Samsung", Model: "990 PRO", Size: 2e12, Bus: "nvme"}
+	pi     = &source.Image{Path: "/images/raspios-lite.img.xz", FileSize: 480e6, Compression: source.Xz, Kind: source.KindRaw, Size: -1}
+	win    = &source.Image{Path: "/images/Win11_25H2_English_x64.iso", FileSize: 8_486_862_848, Kind: source.KindWindowsISO, Size: 8_486_862_848, Label: "CCCOMA_X64FRE_EN-GB_DV9"}
+	big    = &source.Image{Path: "/images/huge.img", FileSize: 40e9, Kind: source.KindRaw, Size: 40e9}
 )
 
 func TestSnapshots(t *testing.T) {
@@ -48,6 +49,12 @@ func TestSnapshots(t *testing.T) {
 		}},
 		{"confirm", false, func() *App {
 			return &App{verify: true, img: pi, drives: []drives.Drive{card}, selected: card.Path, confirming: true}
+		}},
+		{"windows_drive", false, func() *App {
+			return &App{verify: true, img: pi, drives: []drives.Drive{winUSB, card}, selected: winUSB.Path}
+		}},
+		{"confirm_windows", false, func() *App {
+			return &App{verify: true, img: pi, drives: []drives.Drive{winUSB}, selected: winUSB.Path, confirming: true}
 		}},
 		{"confirm_internal", false, func() *App {
 			return &App{verify: true, img: pi, drives: []drives.Drive{ssd}, selected: ssd.Path, showAll: true, confirming: true}

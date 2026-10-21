@@ -21,25 +21,64 @@ type Drive struct {
 	// to it would destroy the machine's own installation.
 	IsSystem bool
 	Mounts   []string // mount points or drive letters of its volumes
+	// Labels names its volumes for people, with the drive letter on
+	// Windows: "SSD (E:)".
+	Labels []string
 }
 
-// Name is the vendor and model, or the path when neither is known.
+// Name is the vendor and model, such as "SanDisk Ultra".
 func (d Drive) Name() string {
-	n := strings.TrimSpace(strings.TrimSpace(d.Vendor) + " " + strings.TrimSpace(d.Model))
-	if n == "" {
-		return d.Path
+	vendor, model := strings.TrimSpace(d.Vendor), strings.TrimSpace(d.Model)
+	// Many drives repeat the vendor in the model ("SanDisk SanDisk SSD PLUS").
+	if strings.HasPrefix(strings.ToLower(model), strings.ToLower(vendor)) {
+		vendor = ""
 	}
-	return n
+	if n := strings.TrimSpace(vendor + " " + model); n != "" {
+		return n
+	}
+	if d.Bus == "usb" {
+		return "USB drive"
+	}
+	return "Unnamed drive"
 }
 
-// Describe is a one-line summary such as "SanDisk Ultra (USB), mounted at /run/media/x".
+// Ref is the name the operating system's own tools use for the drive:
+// the device path on Linux, and "Disk 2" on Windows as in Disk Management
+// and diskpart.
+func (d Drive) Ref() string {
+	if n, ok := strings.CutPrefix(d.Path, `\\.\PhysicalDrive`); ok {
+		return "Disk " + n
+	}
+	return d.Path
+}
+
+// BusName is the connection in words, such as "USB" or "SD card".
+func (d Drive) BusName() string {
+	switch d.Bus {
+	case "sdio", "sd", "mmc":
+		return "SD card"
+	case "nvme":
+		return "NVMe"
+	case "loop":
+		return "loop device"
+	case "vhd":
+		return "VHD"
+	}
+	return strings.ToUpper(d.Bus)
+}
+
+// Describe is a one-line summary such as
+// "SanDisk Ultra (USB), volumes BOOT, mounted at /run/media/x".
 func (d Drive) Describe() string {
 	s := d.Name()
 	if d.Bus != "" {
-		s += " (" + strings.ToUpper(d.Bus) + ")"
+		s += " (" + d.BusName() + ")"
 	}
 	if d.IsSystem {
 		s += ", SYSTEM DRIVE"
+	}
+	if len(d.Labels) > 0 {
+		s += ", volumes " + strings.Join(d.Labels, ", ")
 	}
 	if len(d.Mounts) > 0 {
 		s += ", mounted at " + strings.Join(d.Mounts, ", ")
@@ -108,9 +147,14 @@ func Find(path string, opts Options) (Drive, error) {
 }
 
 // normalisePath accepts the short and slash-swapped forms people type:
-// "sdb" for /dev/sdb, and "PhysicalDrive2" or "//./PhysicalDrive2" for
-// \\.\PhysicalDrive2.
+// "sdb" for /dev/sdb, and "PhysicalDrive2", "//./PhysicalDrive2" or
+// "Disk 2" (see Ref) for \\.\PhysicalDrive2.
 func normalisePath(p string) string {
+	if n, ok := strings.CutPrefix(strings.ToLower(p), "disk"); ok {
+		if n = strings.TrimSpace(n); n != "" && strings.Trim(n, "0123456789") == "" {
+			return `\\.\PhysicalDrive` + n
+		}
+	}
 	q := strings.ReplaceAll(p, "/", `\`)
 	if strings.HasPrefix(strings.ToLower(strings.TrimPrefix(q, `\\.\`)), "physicaldrive") {
 		return `\\.\` + strings.TrimPrefix(q, `\\.\`)

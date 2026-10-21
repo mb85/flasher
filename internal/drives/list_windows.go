@@ -45,8 +45,12 @@ func list() ([]Drive, error) {
 		for _, v := range vols {
 			if v.OnDisk(n) {
 				d.Mounts = append(d.Mounts, v.Paths...)
+				if l := v.Describe(); l != "" {
+					d.Labels = append(d.Labels, l)
+				}
 			}
 		}
+		sort.Strings(d.Labels)
 		sort.Strings(d.Mounts)
 		out = append(out, d)
 	}
@@ -127,8 +131,27 @@ func cString(b []byte, off uint32) string {
 // Volume is a mounted (or mountable) volume and the disks it spans.
 type Volume struct {
 	Name  string   // \\?\Volume{GUID}\
+	Label string   // file system label, if it has one
 	Paths []string // drive letters and folder mount points
 	Disks []int
+}
+
+// Describe names the volume for people: "SSD (E:)", "E:" or "SSD".
+func (v Volume) Describe() string {
+	letter := ""
+	for _, p := range v.Paths {
+		if len(p) == 3 && p[1] == ':' { // "E:\"
+			letter = p[:2]
+			break
+		}
+	}
+	switch {
+	case v.Label != "" && letter != "":
+		return v.Label + " (" + letter + ")"
+	case v.Label != "":
+		return v.Label
+	}
+	return letter
 }
 
 // OnDisk reports whether the volume has an extent on disk n.
@@ -145,7 +168,7 @@ func Volumes() ([]Volume, error) {
 	var out []Volume
 	for {
 		name := windows.UTF16ToString(buf)
-		v := Volume{Name: name, Paths: volumePaths(name), Disks: volumeDisks(name)}
+		v := Volume{Name: name, Label: volumeLabel(name), Paths: volumePaths(name), Disks: volumeDisks(name)}
 		out = append(out, v)
 		if err := windows.FindNextVolume(h, &buf[0], uint32(len(buf))); err != nil {
 			if errors.Is(err, windows.ERROR_NO_MORE_FILES) {
@@ -154,6 +177,15 @@ func Volumes() ([]Volume, error) {
 			return out, err
 		}
 	}
+}
+
+func volumeLabel(name string) string {
+	p, _ := windows.UTF16PtrFromString(name)
+	buf := make([]uint16, windows.MAX_PATH+1)
+	if err := windows.GetVolumeInformation(p, &buf[0], uint32(len(buf)), nil, nil, nil, nil, 0); err != nil {
+		return "" // no recognised file system, or no media
+	}
+	return windows.UTF16ToString(buf)
 }
 
 func volumePaths(name string) []string {

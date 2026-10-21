@@ -9,6 +9,7 @@ import (
 	. "go.hasen.dev/shirei"
 	. "go.hasen.dev/shirei/widgets"
 
+	"flasher/internal/drives"
 	"flasher/internal/flash"
 	"flasher/internal/source"
 	"flasher/internal/units"
@@ -136,14 +137,16 @@ func (a *App) driveStep() {
 					a.selected = d.Path
 				}
 				Label(d.Name(), FontWeight(WeightSemibold))
-				detail := units.Bytes(d.Size) + " · " + d.Path
-				if d.IsSystem {
-					detail += " · system drive"
+				lines := []string{driveDetail(d)}
+				if len(d.Labels) > 0 {
+					lines = append(lines, strings.Join(d.Labels, ", "))
 				}
-				if sel {
-					Label(detail)
-				} else {
-					Label(detail, muted())
+				for _, l := range lines {
+					if sel {
+						Label(l)
+					} else {
+						Label(l, muted())
+					}
 				}
 			})
 		}
@@ -160,6 +163,19 @@ func (a *App) driveStep() {
 	}
 }
 
+// driveDetail is the line under a drive's name: "32 GB · USB · /dev/sdb".
+func driveDetail(d drives.Drive) string {
+	parts := []string{units.Bytes(d.Size)}
+	if d.Bus != "" {
+		parts = append(parts, d.BusName())
+	}
+	parts = append(parts, d.Ref())
+	if d.IsSystem {
+		parts = append(parts, "system drive")
+	}
+	return strings.Join(parts, " · ")
+}
+
 func (a *App) flashStep() {
 	d, ok := a.selectedDrive()
 	switch {
@@ -170,7 +186,7 @@ func (a *App) flashStep() {
 	case !ok:
 		Label("Choose a drive.", muted())
 	default:
-		Label(fmt.Sprintf("Ready to write %s to %s.", filepath.Base(a.img.Path), d.Name()), muted())
+		Label(fmt.Sprintf("Ready to write %s to %s (%s).", filepath.Base(a.img.Path), d.Name(), d.Ref()), muted())
 	}
 	if p := a.problem(); p != "" {
 		Label(p, errText())
@@ -194,13 +210,22 @@ func (a *App) confirmModal() {
 	}
 	Modal(440, func() { a.confirming = false }, func() {
 		Label("Erase this drive?", FontSize(17), FontWeight(WeightSemibold))
-		Label(fmt.Sprintf("%s, %s (%s)", d.Name(), units.Bytes(d.Size), d.Path), FontWeight(WeightSemibold))
+		Container(Attrs(Gap(2)), func() {
+			Label(d.Name(), FontWeight(WeightSemibold))
+			Label(driveDetail(d), muted())
+			if len(d.Labels) > 0 {
+				Label("Volumes: "+strings.Join(d.Labels, ", "), muted())
+			}
+		})
 		Label("Everything on it will be replaced by " + filepath.Base(a.img.Path) + ".")
-		if len(d.Mounts) > 0 {
+		switch {
+		case len(d.Mounts) > 0 && len(d.Labels) > 0:
+			Label("Its volumes will be unmounted first.", muted())
+		case len(d.Mounts) > 0:
 			Label("Its volumes will be unmounted first: "+strings.Join(d.Mounts, ", "), muted())
 		}
 		if d.Size > bigDrive || d.Bus != "usb" && d.Bus != "sdio" && d.Bus != "loop" {
-			Label(fmt.Sprintf("This is a %s %s drive, which is unusual for a flash target. Make sure it is the right one.", units.Bytes(d.Size), strings.ToUpper(d.Bus)), errText())
+			Label(fmt.Sprintf("This is a %s %s drive, which is unusual for a flash target. Make sure it is the right one.", units.Bytes(d.Size), d.BusName()), errText())
 		}
 		Container(Attrs(Row, Gap(10), MainAlign(AlignEnd), Expand), func() {
 			NextAccessName("cancel_flash")
@@ -244,7 +269,7 @@ func (a *App) flashingView() {
 			title = "Opening the drive"
 		}
 		Label(title, FontSize(20), FontWeight(WeightSemibold))
-		Label(fmt.Sprintf("%s to %s", filepath.Base(a.img.Path), d.Name()), muted())
+		Label(fmt.Sprintf("%s to %s (%s)", filepath.Base(a.img.Path), d.Name(), d.Ref()), muted())
 		ProgressBarExt(float32(p.Fraction), ProgressBarAttrs{Width: 420, Height: 10})
 		Label(progressLine(p, a.opening), muted())
 		NextAccessName("cancel")
