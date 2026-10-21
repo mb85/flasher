@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"flasher/internal/source"
+	"flasher/internal/units"
 	"flasher/internal/winmedia"
 )
 
@@ -56,8 +57,12 @@ func Windows(img *source.Image, driveSize int64, sectorSize int) (_ *Plan, err e
 
 	vol, err := winmedia.PlanFAT32(root, partBytes, sectorSize, iso.Vol.Label())
 	if err != nil {
+		if nr, ok := errors.AsType[*winmedia.NoRoomError](err); ok {
+			return nil, fmt.Errorf("the drive is too small for this Windows image: its files need %s and the drive holds %s",
+				units.Bytes(nr.Need), units.Bytes(nr.Have))
+		}
 		if errors.Is(err, winmedia.ErrNoRoom) {
-			return nil, fmt.Errorf("the drive is too small for this Windows image: %w", err)
+			return nil, errors.New("the drive is too small for this Windows image")
 		}
 		return nil, err
 	}

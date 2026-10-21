@@ -2,6 +2,7 @@
 package main
 
 import (
+	_ "embed"
 	"flag"
 	"fmt"
 	"os"
@@ -15,6 +16,12 @@ import (
 	"flasher/internal/ui"
 )
 
+// icon is shown in the title bar and taskbar; the .exe's own icon comes from
+// the go-winres resources built from the same image.
+//
+//go:embed winres/icon.png
+var icon []byte
+
 func main() {
 	var virtual bool
 	flag.BoolVar(&virtual, "include-virtual", false, "list loop devices (Linux) and attached VHDs (Windows) as targets, for testing")
@@ -27,6 +34,7 @@ func main() {
 
 	a := ui.New(ui.Options{IncludeVirtual: virtual, Image: flag.Arg(0)})
 	app.SetupWindow("Flasher", 840, 460)
+	app.SetupIconBytes(icon)
 	window.SetMinSize(720, 420)
 	app.SetupDrive()
 	a.Start()

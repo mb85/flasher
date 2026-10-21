@@ -87,6 +87,16 @@ func ClusterSizeFor(volumeBytes int64) int {
 // ErrNoRoom means the files do not fit on the volume.
 var ErrNoRoom = errors.New("not enough room on the drive")
 
+// NoRoomError says how much room the files need and how much the volume
+// has. It matches ErrNoRoom.
+type NoRoomError struct{ Need, Have int64 }
+
+func (e *NoRoomError) Error() string {
+	return fmt.Sprintf("the files need %d bytes and the volume holds %d", e.Need, e.Have)
+}
+
+func (e *NoRoomError) Is(target error) bool { return target == ErrNoRoom }
+
 // PlanFAT32 lays out a FAT32 volume of volumeBytes holding the tree under
 // root, which must be a directory. Every file and directory gets one
 // contiguous run of clusters, directories first and files after them in
@@ -189,8 +199,7 @@ func PlanFAT32(root *Node, volumeBytes int64, sectorSize int, label string) (*FA
 	}
 	v.Used = next - 2
 	if v.Used > v.Clusters {
-		need := v.Used * int64(cs)
-		return nil, fmt.Errorf("%w: the files need %d bytes and the volume holds %d", ErrNoRoom, need, v.Clusters*int64(cs))
+		return nil, &NoRoomError{Need: v.Used * int64(cs), Have: v.Clusters * int64(cs)}
 	}
 
 	parent := map[*Node]*Node{}

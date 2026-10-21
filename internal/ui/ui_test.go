@@ -36,7 +36,12 @@ func TestSnapshots(t *testing.T) {
 			return &App{verify: true, img: pi, drives: []drives.Drive{stick, card}, selected: stick.Path}
 		}},
 		{"windows_iso", false, func() *App {
-			return &App{verify: true, img: win, drives: []drives.Drive{stick}, selected: stick.Path}
+			return &App{verify: true, img: win, drives: []drives.Drive{stick}, selected: stick.Path, fit: fitCheck{key: fitKey(win, stick)}}
+		}},
+		{"windows_too_small", false, func() *App {
+			small := drives.Drive{Path: "/dev/sdc", Vendor: "Kingston", Model: "DataTraveler", Size: 8e9, Bus: "usb", Removable: true}
+			return &App{verify: true, img: win, drives: []drives.Drive{small}, selected: small.Path,
+				fit: fitCheck{key: fitKey(win, small), err: "The drive is too small for this Windows image: its files need 8.5 GB and the drive holds 8.0 GB."}}
 		}},
 		{"too_large", false, func() *App {
 			return &App{verify: true, img: big, drives: []drives.Drive{stick}, selected: stick.Path}
@@ -74,8 +79,9 @@ func TestSnapshots(t *testing.T) {
 			return &App{img: pi, drives: []drives.Drive{stick}, selected: stick.Path, phase: phaseDone, elapsed: 245 * time.Second}
 		}},
 		{"failed", false, func() *App {
-			return &App{img: pi, drives: []drives.Drive{stick}, selected: stick.Path, phase: phaseFailed,
-				result: (&flash.VerifyError{Segment: "image", Offset: 1 << 30}).Error()}
+			a := &App{img: pi, drives: []drives.Drive{stick}, selected: stick.Path, phase: phaseFailed}
+			a.result, a.resultDetail = flash.Explain(&flash.VerifyError{Segment: "image", Offset: 1 << 30})
+			return a
 		}},
 		{"browser", false, func() *App {
 			a := &App{verify: true, browsing: true, drives: []drives.Drive{stick}}

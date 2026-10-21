@@ -24,6 +24,7 @@ func errText() TextStyleFn { return TextColorVec(CurrentColorScheme.List.Error) 
 
 // Root is the frame function.
 func (a *App) Root() {
+	a.checkFit()
 	ModAttrs(UseSurface(SurfaceCanvas))
 	Container(Attrs(Viewport, Pad(24), Gap(18)), func() {
 		// Key each screen so its widgets never share identity with the
@@ -185,6 +186,10 @@ func (a *App) flashStep() {
 		Label("Choose an image.", muted())
 	case !ok:
 		Label("Choose a drive.", muted())
+	case a.problem() != "":
+		// shown below instead
+	case a.fit.pending:
+		Label("Checking that the image fits…", muted())
 	default:
 		Label(fmt.Sprintf("Ready to write %s to %s (%s).", filepath.Base(a.img.Path), d.Name(), d.Ref()), muted())
 	}
@@ -316,8 +321,11 @@ func (a *App) resultView() {
 		} else {
 			Icon(SymFail, FontSize(44), errText())
 			Label("Flashing did not finish", FontSize(20), FontWeight(WeightSemibold))
-			Container(Attrs(MaxWidth(520)), func() {
-				Label(sentence(a.result), errText())
+			Container(Attrs(MaxWidth(520), Gap(6)), func() {
+				Label(a.result, errText())
+				if a.resultDetail != "" {
+					Label(a.resultDetail, FontSize(12), muted())
+				}
 			})
 		}
 		NextAccessName("back")

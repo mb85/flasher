@@ -157,7 +157,11 @@ func flashCmd(args []string) error {
 	err = flash.Run(ctx, dev, p, flash.Options{Verify: !*noVerify, Progress: printProgress})
 	fmt.Println()
 	if err != nil {
-		return err
+		summary, detail := flash.Explain(err)
+		if detail != "" {
+			summary += "\n  (" + detail + ")"
+		}
+		return errors.New(summary)
 	}
 	fmt.Printf("Done in %s.\n", time.Since(start).Round(time.Second))
 	return nil

@@ -107,7 +107,7 @@ func Run(ctx context.Context, dev device.Device, p *plan.Plan, opts Options) err
 	}
 	rep.setStage(Syncing, 0)
 	if err := dev.Sync(); err != nil {
-		return fmt.Errorf("flush drive: %w", err)
+		return &DriveError{Op: "flush", Offset: -1, Err: err}
 	}
 	if opts.Verify {
 		var total int64
@@ -172,7 +172,7 @@ func writeChunk(dev device.Device, p *plan.Plan, c chunk) error {
 		return fmt.Errorf("%w (%s does not fit)", ErrTooLarge, p.Segments[c.seg].Name)
 	}
 	if _, err := dev.WriteAt(c.buf[:c.padded], c.offset); err != nil {
-		return fmt.Errorf("write at offset %d: %w", c.offset, err)
+		return &DriveError{Op: "write", Offset: c.offset, Err: err}
 	}
 	return nil
 }
@@ -181,7 +181,7 @@ func readSegments(ctx context.Context, p *plan.Plan, free chan []byte, full chan
 	for i, s := range p.Segments {
 		r, err := s.Open()
 		if err != nil {
-			return fmt.Errorf("open %s: %w", s.Name, err)
+			return &SourceError{Segment: s.Name, Err: err}
 		}
 		err = readSegment(ctx, i, s, r, free, full, chunkSize, sector)
 		r.Close()
@@ -210,11 +210,11 @@ func readSegment(ctx context.Context, idx int, s plan.Segment, r io.Reader, free
 		eof := err == io.EOF || err == io.ErrUnexpectedEOF
 		if err != nil && !eof {
 			free <- buf
-			return fmt.Errorf("read %s: %w", s.Name, err)
+			return &SourceError{Segment: s.Name, Err: err}
 		}
 		if eof && remaining > 0 && n < want {
 			free <- buf
-			return fmt.Errorf("read %s: source ended %d bytes early", s.Name, remaining-int64(n))
+			return &SourceError{Segment: s.Name, Err: fmt.Errorf("%w: %d bytes missing", io.ErrUnexpectedEOF, remaining-int64(n))}
 		}
 		if n == 0 {
 			free <- buf
@@ -236,7 +236,7 @@ func readSegment(ctx context.Context, idx int, s plan.Segment, r io.Reader, free
 		}
 		if n%sector != 0 {
 			// Only the final chunk may end mid-sector.
-			return fmt.Errorf("read %s: short read of %d bytes", s.Name, n)
+			return &SourceError{Segment: s.Name, Err: fmt.Errorf("short read of %d bytes", n)}
 		}
 	}
 	return nil
@@ -250,7 +250,7 @@ func verify(ctx context.Context, dev device.Device, p *plan.Plan, records []reco
 		}
 		padded := (r.length + sector - 1) / sector * sector
 		if _, err := dev.ReadAt(buf[:padded], r.offset); err != nil {
-			return fmt.Errorf("read back offset %d: %w", r.offset, err)
+			return &DriveError{Op: "read back", Offset: r.offset, Err: err}
 		}
 		if sha256.Sum256(buf[:r.length]) != r.sum {
 			return &VerifyError{Segment: p.Segments[r.seg].Name, Offset: r.offset}

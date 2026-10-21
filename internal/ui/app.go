@@ -4,6 +4,7 @@ package ui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"flasher/internal/flash"
 	"flasher/internal/plan"
 	"flasher/internal/source"
+	"flasher/internal/units"
 )
 
 // Options configures the app at start-up.
@@ -56,14 +58,60 @@ type App struct {
 
 	verify     bool
 	confirming bool
+	fit        fitCheck
 
-	phase    phase
-	opening  bool // waiting for the drive to open (and polkit to answer)
-	progress flash.Progress
-	cancel   context.CancelFunc
-	started  time.Time
-	elapsed  time.Duration
-	result   string
+	phase        phase
+	opening      bool // waiting for the drive to open (and polkit to answer)
+	progress     flash.Progress
+	cancel       context.CancelFunc
+	started      time.Time
+	elapsed      time.Duration
+	result       string // what went wrong, in plain words
+	resultDetail string // the technical error behind it
+}
+
+// fitCheck is the outcome of planning the image onto the chosen drive.
+// Windows media is rebuilt, so planning it is the only exact way to know it
+// fits; the plan is made in the background whenever the pair changes.
+type fitCheck struct {
+	key     string // image path, drive path and size the result is for
+	pending bool
+	err     string
+}
+
+func fitKey(img *source.Image, d drives.Drive) string {
+	return fmt.Sprintf("%s|%s|%d|%d", img.Path, d.Path, d.Size, d.SectorSize)
+}
+
+// checkFit starts planning the image onto the selected drive when that pair
+// has changed. Called on the UI thread.
+func (a *App) checkFit() {
+	d, ok := a.selectedDrive()
+	if a.img == nil || !ok || a.img.Kind != source.KindWindowsISO {
+		a.fit = fitCheck{}
+		return
+	}
+	key := fitKey(a.img, d)
+	if a.fit.key == key {
+		return
+	}
+	a.fit = fitCheck{key: key, pending: true}
+	img := a.img
+	go func() {
+		msg := ""
+		p, err := plan.For(img, d.Size, d.SectorSize)
+		if err != nil {
+			msg = sentence(err.Error()) + "."
+		} else {
+			p.Close()
+		}
+		WithFrameLock(func() {
+			if a.fit.key == key {
+				a.fit.pending, a.fit.err = false, msg
+			}
+		})
+		RequestNextFrame()
+	}()
 }
 
 // New creates the app. Call Start once the window is set up.
@@ -171,15 +219,17 @@ func (a *App) problem() string {
 	switch {
 	case d.IsSystem:
 		return "This drive holds the running system."
+	case a.img.Kind == source.KindWindowsISO:
+		return a.fit.err
 	case a.img.Size > d.Size:
-		return "The image is larger than this drive."
+		return fmt.Sprintf("The image is %s and this drive holds %s.", units.Bytes(a.img.Size), units.Bytes(d.Size))
 	}
 	return ""
 }
 
 func (a *App) canFlash() bool {
 	_, ok := a.selectedDrive()
-	return a.img != nil && ok && !a.inspecting && a.problem() == ""
+	return a.img != nil && ok && !a.inspecting && !a.fit.pending && a.problem() == ""
 }
 
 // startFlash runs the flash in the background. Called on the UI thread.
@@ -199,16 +249,11 @@ func (a *App) startFlash() {
 		WithFrameLock(func() {
 			a.elapsed = time.Since(a.started)
 			a.cancel = nil
-			switch {
-			case err == nil:
-				a.phase = phaseDone
-				a.result = ""
-			case errors.Is(err, context.Canceled):
+			if err == nil {
+				a.phase, a.result, a.resultDetail = phaseDone, "", ""
+			} else {
 				a.phase = phaseFailed
-				a.result = "Cancelled. The drive was only partly written, so flash it again or reformat it before using it."
-			default:
-				a.phase = phaseFailed
-				a.result = err.Error()
+				a.result, a.resultDetail = flash.Explain(err)
 			}
 		})
 		RequestNextFrame()
