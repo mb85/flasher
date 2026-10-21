@@ -1,4 +1,4 @@
-package winmedia
+package media
 
 import (
 	"crypto/rand"
@@ -330,6 +330,12 @@ func (v *FAT32) fsInfo() []byte {
 	binary.LittleEndian.PutUint32(b[492:], uint32(v.Used+2))
 	binary.LittleEndian.PutUint32(b[508:], 0xAA550000)
 	return b
+}
+
+// FATLabel is the volume label a FAT32 volume planned with label gets, as
+// Linux reports it: upper case, at most 11 characters, spaces trimmed.
+func FATLabel(label string) string {
+	return strings.TrimRight(string(fatLabel(label)), " ")
 }
 
 // fatLabel turns an ISO label into an 11-byte FAT volume label.

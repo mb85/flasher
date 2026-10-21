@@ -1,6 +1,7 @@
-// Package winmedia holds the pure-Go pieces for building Windows installer
-// media: the MBR, a write-once FAT32 filesystem, and WIM splitting.
-package winmedia
+// Package media holds the pure-Go pieces for building boot media file by
+// file: the MBR, a write-once FAT32 filesystem, an empty ext4 filesystem
+// and WIM splitting.
+package media
 
 import (
 	"bytes"

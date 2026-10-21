@@ -4,12 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"path"
 	"strings"
 
+	"flasher/internal/media"
 	"flasher/internal/source"
 	"flasher/internal/units"
-	"flasher/internal/winmedia"
 )
 
 const mib = 1 << 20
@@ -55,18 +56,18 @@ func Windows(img *source.Image, driveSize int64, sectorSize int) (_ *Plan, err e
 	// 512-byte sectors; anything past that is left unused.
 	partBytes = min(partBytes, ((1<<32)-partStart/ss)*ss/mib*mib)
 
-	vol, err := winmedia.PlanFAT32(root, partBytes, sectorSize, iso.Vol.Label())
+	vol, err := media.PlanFAT32(root, partBytes, sectorSize, iso.Vol.Label())
 	if err != nil {
-		if nr, ok := errors.AsType[*winmedia.NoRoomError](err); ok {
+		if nr, ok := errors.AsType[*media.NoRoomError](err); ok {
 			return nil, fmt.Errorf("the drive is too small for this Windows image: its files need %s and the drive holds %s",
 				units.Bytes(nr.Need), units.Bytes(nr.Have))
 		}
-		if errors.Is(err, winmedia.ErrNoRoom) {
+		if errors.Is(err, media.ErrNoRoom) {
 			return nil, errors.New("the drive is too small for this Windows image")
 		}
 		return nil, err
 	}
-	mbr, err := winmedia.MBR(partStart/ss, partBytes/ss)
+	mbr, err := media.MBR(media.Partition{Start: partStart / ss, Count: partBytes / ss, Type: 0x0C, Active: true})
 	if err != nil {
 		return nil, err
 	}
@@ -74,8 +75,16 @@ func Windows(img *source.Image, driveSize int64, sectorSize int) (_ *Plan, err e
 	copy(head, mbr)
 
 	p.Segments = append(p.Segments, Bytes("partition table", 0, head))
-	for _, r := range vol.Regions {
-		off := partStart + r.Offset
+	p.addRegions(partStart, vol.Regions)
+	p.finish(tail, driveSize)
+	return p, nil
+}
+
+// addRegions appends a volume's regions as segments, offset by the
+// volume's start on the drive.
+func (p *Plan) addRegions(start int64, regions []media.Region) {
+	for _, r := range regions {
+		off := start + r.Offset
 		switch {
 		case r.Data != nil:
 			p.Segments = append(p.Segments, Bytes(r.Name, off, r.Data))
@@ -85,20 +94,23 @@ func Windows(img *source.Image, driveSize int64, sectorSize int) (_ *Plan, err e
 			p.Segments = append(p.Segments, Zeros(r.Name, off, r.Length))
 		}
 	}
+}
+
+// finish clears the drive from tail to its end and totals the segments.
+func (p *Plan) finish(tail, driveSize int64) {
 	p.Segments = append(p.Segments, Zeros("end of drive", tail, driveSize-tail))
 	for _, s := range p.Segments {
 		p.Total += s.Length
 	}
-	return p, nil
 }
 
 // isoTree reads the directory at dir and everything under it.
-func isoTree(iso *source.ISO, dir string) (*winmedia.Node, error) {
+func isoTree(iso *source.ISO, dir string) (*media.Node, error) {
 	fi, err := iso.Vol.Stat(dir)
 	if err != nil {
 		return nil, err
 	}
-	n := &winmedia.Node{Name: path.Base(dir), Dir: true, ModTime: fi.ModTime()}
+	n := &media.Node{Name: path.Base(dir), Dir: true, ModTime: fi.ModTime()}
 	if dir == "/" {
 		n.Name = ""
 	}
@@ -107,6 +119,9 @@ func isoTree(iso *source.ISO, dir string) (*winmedia.Node, error) {
 		return nil, fmt.Errorf("read %s on the ISO: %w", dir, err)
 	}
 	for _, e := range ents {
+		if e.Type()&fs.ModeSymlink != 0 {
+			continue // FAT32 has no links; see source.LinuxISO
+		}
 		p := path.Join(dir, e.Name())
 		if e.IsDir() {
 			c, err := isoTree(iso, p)
@@ -120,7 +135,7 @@ func isoTree(iso *source.ISO, dir string) (*winmedia.Node, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read %s on the ISO: %w", p, err)
 		}
-		n.Children = append(n.Children, &winmedia.Node{
+		n.Children = append(n.Children, &media.Node{
 			Name:    e.Name(),
 			Size:    info.Size(),
 			ModTime: info.ModTime(),
@@ -133,13 +148,13 @@ func isoTree(iso *source.ISO, dir string) (*winmedia.Node, error) {
 // splitInstallWIM replaces sources/install.wim with .swm parts when it is
 // too large for FAT32. The parts are read straight from the ISO, so the WIM
 // stays open until the plan is closed.
-func splitInstallWIM(iso *source.ISO, root *winmedia.Node, p *Plan) error {
+func splitInstallWIM(iso *source.ISO, root *media.Node, p *Plan) error {
 	sources := child(root, "sources")
 	if sources == nil {
 		return nil
 	}
 	wim := child(sources, "install.wim")
-	if wim == nil || wim.Size <= winmedia.FAT32MaxFile {
+	if wim == nil || wim.Size <= media.FAT32MaxFile {
 		return nil
 	}
 	f, err := wim.Open()
@@ -151,22 +166,22 @@ func splitInstallWIM(iso *source.ISO, root *winmedia.Node, p *Plan) error {
 	if !ok {
 		return errors.New("install.wim on the ISO does not support random access")
 	}
-	info, err := winmedia.ReadWIM(src, wim.Size)
+	info, err := media.ReadWIM(src, wim.Size)
 	if err != nil {
 		return fmt.Errorf("install.wim: %w", err)
 	}
-	parts, err := info.Split("install", winmedia.DefaultPartSize)
+	parts, err := info.Split("install", media.DefaultPartSize)
 	if err != nil {
 		return fmt.Errorf("split install.wim: %w", err)
 	}
-	var kids []*winmedia.Node
+	var kids []*media.Node
 	for _, c := range sources.Children {
 		if c != wim {
 			kids = append(kids, c)
 		}
 	}
 	for _, part := range parts {
-		kids = append(kids, &winmedia.Node{
+		kids = append(kids, &media.Node{
 			Name:    part.Name,
 			Size:    part.Size,
 			ModTime: wim.ModTime,
@@ -177,7 +192,7 @@ func splitInstallWIM(iso *source.ISO, root *winmedia.Node, p *Plan) error {
 	return nil
 }
 
-func child(dir *winmedia.Node, name string) *winmedia.Node {
+func child(dir *media.Node, name string) *media.Node {
 	for _, c := range dir.Children {
 		if strings.EqualFold(c.Name, name) {
 			return c

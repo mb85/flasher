@@ -1,4 +1,4 @@
-package winmedia
+package media
 
 import (
 	"bytes"
@@ -245,7 +245,7 @@ func TestFAT32Volume(t *testing.T) {
 }
 
 func TestMBR(t *testing.T) {
-	b, err := MBR(2048, 1_000_000)
+	b, err := MBR(Partition{Start: 2048, Count: 1_000_000, Type: 0x0C, Active: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestMBR(t *testing.T) {
 	if !bytes.Equal(e[1:4], []byte{32, 33, 0}) { // LBA 2048 is C0 H32 S33
 		t.Errorf("start CHS % x", e[1:4])
 	}
-	if _, err := MBR(2048, 1<<32); err == nil {
+	if _, err := MBR(Partition{Start: 2048, Count: 1 << 32, Type: 0x0C}); err == nil {
 		t.Error("a partition past 2 TiB should be refused")
 	}
 }

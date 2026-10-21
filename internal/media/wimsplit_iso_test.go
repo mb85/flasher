@@ -1,4 +1,4 @@
-package winmedia
+package media
 
 import (
 	"io"
@@ -12,7 +12,7 @@ import (
 // TestSplitFromISO splits install.wim straight out of a Windows ISO and writes
 // the parts to FLASHER_SWM_OUT for checking with wimlib, for example:
 //
-//	FLASHER_TEST_ISO=~/Win11.iso FLASHER_SWM_OUT=~/.cache/flasher-test/swm go test -run SplitFromISO ./internal/winmedia
+//	FLASHER_TEST_ISO=~/Win11.iso FLASHER_SWM_OUT=~/.cache/flasher-test/swm go test -run SplitFromISO ./internal/media
 //	wimlib-imagex verify install.swm --ref='install*.swm'
 func TestSplitFromISO(t *testing.T) {
 	iso, out := os.Getenv("FLASHER_TEST_ISO"), os.Getenv("FLASHER_SWM_OUT")

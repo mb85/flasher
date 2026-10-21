@@ -1,4 +1,4 @@
-package winmedia
+package media
 
 import (
 	"bytes"
