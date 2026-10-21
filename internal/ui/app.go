@@ -216,15 +216,18 @@ func (a *App) startFlash() {
 }
 
 func (a *App) run(ctx context.Context, img *source.Image, d drives.Drive, verify bool) error {
+	// Plan before opening: opening a drive on Windows already clears its
+	// partition table, and a plan can still fail (an image too large).
+	p, err := plan.For(img, d.Size, d.SectorSize)
+	if err != nil {
+		return err
+	}
+	defer p.Close()
 	dev, err := device.Open(d)
 	if err != nil {
 		return err
 	}
 	defer dev.Close()
-	p, err := plan.For(img, dev.Size())
-	if err != nil {
-		return err
-	}
 	WithFrameLock(func() { a.opening = false })
 	return flash.Run(ctx, dev, p, flash.Options{
 		Verify: verify,

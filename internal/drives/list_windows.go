@@ -111,6 +111,7 @@ func probeDisk(n int) (Drive, bool) {
 	// DISK_GEOMETRY_EX: DISK_GEOMETRY (24 bytes) then DiskSize.
 	geo := make([]byte, 256)
 	if m, err := ioctl(h, ioctlDiskGetDriveGeometryEx, nil, geo); err == nil && m >= 32 {
+		d.SectorSize = int(binary.LittleEndian.Uint32(geo[20:]))
 		d.Size = int64(binary.LittleEndian.Uint64(geo[24:]))
 	}
 	return d, true

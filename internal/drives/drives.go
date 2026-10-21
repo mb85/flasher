@@ -10,13 +10,15 @@ import (
 
 // Drive is a whole disk, not a partition.
 type Drive struct {
-	Path      string // /dev/sdb, or \\.\PhysicalDrive2 on Windows
-	ID        string // platform handle: a UDisks object path, or a disk number
-	Vendor    string
-	Model     string
-	Size      int64
-	Bus       string // "usb", "sdio", "ata", "nvme", "loop", ...
-	Removable bool
+	Path   string // /dev/sdb, or \\.\PhysicalDrive2 on Windows
+	ID     string // platform handle: a UDisks object path, or a disk number
+	Vendor string
+	Model  string
+	Size   int64
+	// SectorSize is the logical sector size in bytes, or 0 if unknown.
+	SectorSize int
+	Bus        string // "usb", "sdio", "ata", "nvme", "loop", ...
+	Removable  bool
 	// IsSystem is set when the drive holds the running system, so writing
 	// to it would destroy the machine's own installation.
 	IsSystem bool

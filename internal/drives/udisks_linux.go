@@ -2,9 +2,11 @@ package drives
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/godbus/dbus/v5"
@@ -109,6 +111,17 @@ func (o Objects) Partitions(disk dbus.ObjectPath) []dbus.ObjectPath {
 	return out
 }
 
+// sysfsSectorSize reads a block device's logical sector size, which needs
+// no privileges, unlike asking the device itself.
+func sysfsSectorSize(dev string) int {
+	b, err := os.ReadFile(filepath.Join("/sys/class/block", filepath.Base(dev), "queue/logical_block_size"))
+	if err != nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	return n
+}
+
 var systemMounts = []string{"/", "/boot", "/boot/efi", "/efi", "/usr", "/var", "/home"}
 
 func list() ([]Drive, error) {
@@ -186,6 +199,7 @@ func list() ([]Drive, error) {
 				d.Bus = "nvme"
 			}
 		}
+		d.SectorSize = sysfsSectorSize(d.Path)
 		sort.Strings(d.Mounts)
 		// A hybrid ISO repeats its label on the whole disk and partition 1.
 		d.Labels = slices.Compact(slices.Sorted(slices.Values(labels[p])))

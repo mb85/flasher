@@ -85,6 +85,10 @@ func Run(ctx context.Context, dev device.Device, p *plan.Plan, opts Options) err
 	if opts.ChunkSize%sector != 0 {
 		return fmt.Errorf("chunk size %d is not a multiple of the sector size %d", opts.ChunkSize, sector)
 	}
+	if p.DriveSize != 0 && p.DriveSize != dev.Size() || p.SectorSize != 0 && p.SectorSize != sector {
+		return fmt.Errorf("the drive changed since it was chosen (now %d bytes with %d-byte sectors, planned for %d with %d)",
+			dev.Size(), sector, p.DriveSize, p.SectorSize)
+	}
 	if p.Total > dev.Size() {
 		return fmt.Errorf("%w (%d bytes, drive holds %d)", ErrTooLarge, p.Total, dev.Size())
 	}

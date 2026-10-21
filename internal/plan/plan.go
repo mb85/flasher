@@ -27,6 +27,24 @@ type Plan struct {
 	Total int64
 	// Fraction reports progress when Total is unknown. It may be nil.
 	Fraction func() float64
+	// DriveSize and SectorSize are the drive geometry a layout was planned
+	// for, or 0 when the plan suits any drive it fits on.
+	DriveSize  int64
+	SectorSize int
+
+	closers []io.Closer
+}
+
+// Close releases what the segments read from, such as an open ISO.
+func (p *Plan) Close() error {
+	var err error
+	for _, c := range p.closers {
+		if e := c.Close(); err == nil {
+			err = e
+		}
+	}
+	p.closers = nil
+	return err
 }
 
 // Raw writes an image byte for byte from offset 0.
@@ -65,6 +83,25 @@ func Bytes(name string, offset int64, b []byte) Segment {
 			return io.NopCloser(&byteReader{b: b}), nil
 		},
 	}
+}
+
+// Zeros is a segment of zero bytes, for clearing old data.
+func Zeros(name string, offset, length int64) Segment {
+	return Segment{
+		Name:   name,
+		Offset: offset,
+		Length: length,
+		Open: func() (io.ReadCloser, error) {
+			return io.NopCloser(io.LimitReader(zeroReader{}, length)), nil
+		},
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	clear(p)
+	return len(p), nil
 }
 
 type byteReader struct{ b []byte }

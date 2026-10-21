@@ -117,11 +117,17 @@ func flashCmd(args []string) error {
 	target := fs.Arg(1)
 
 	var dev device.Device
+	var p *plan.Plan
 	if *toFile {
-		dev, err = openFileTarget(target, *size, img)
+		if dev, err = openFileTarget(target, *size, img); err != nil {
+			return err
+		}
+		defer dev.Close()
+		if p, err = plan.For(img, dev.Size(), dev.SectorSize()); err != nil {
+			return err
+		}
 	} else {
-		var d drives.Drive
-		d, err = drives.Find(target, drives.Options{All: true, IncludeVirtual: virtual})
+		d, err := drives.Find(target, drives.Options{All: true, IncludeVirtual: virtual})
 		if err != nil {
 			return err
 		}
@@ -132,17 +138,19 @@ func flashCmd(args []string) error {
 		if !*yes && !confirm(fmt.Sprintf("Everything on %s (%s) will be erased. Continue?", d.Name(), d.Ref())) {
 			return errors.New("cancelled")
 		}
-		dev, err = device.Open(d)
+		// Plan before opening: opening a drive on Windows already clears
+		// its partition table, and a plan can still fail.
+		if p, err = plan.For(img, d.Size, d.SectorSize); err != nil {
+			return err
+		}
+		if dev, err = device.Open(d); err != nil {
+			p.Close()
+			return err
+		}
+		defer dev.Close()
 	}
-	if err != nil {
-		return err
-	}
-	defer dev.Close()
+	defer p.Close()
 
-	p, err := plan.For(img, dev.Size())
-	if err != nil {
-		return err
-	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	start := time.Now()
