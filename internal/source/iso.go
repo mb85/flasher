@@ -56,21 +56,33 @@ func (iso *ISO) Find(p string) (string, bool) {
 	return cur, true
 }
 
-// InstallImage returns the on-disc path of sources/install.wim or
-// sources/install.esd.
+// InstallImage returns the on-disc path of sources/install.wim,
+// install.esd or install.swm (media that ships already split).
 func (iso *ISO) InstallImage() (string, bool) {
-	if p, ok := iso.Find("sources/install.wim"); ok {
-		return p, true
+	for _, name := range []string{"install.wim", "install.esd", "install.swm"} {
+		if p, ok := iso.Find("sources/" + name); ok {
+			return p, true
+		}
 	}
-	return iso.Find("sources/install.esd")
+	return "", false
 }
+
+// efiBootNames are the removable-media boot loaders UEFI looks for, one
+// per architecture, so ARM64 Windows media is recognised too.
+var efiBootNames = []string{"bootx64.efi", "bootaa64.efi", "bootia32.efi", "bootarm.efi"}
 
 // IsWindowsInstaller reports whether the disc looks like Windows Setup
 // media that can boot from FAT32 on UEFI.
 func (iso *ISO) IsWindowsInstaller() bool {
-	_, efi := iso.Find("efi/boot/bootx64.efi")
-	_, inst := iso.InstallImage()
-	return efi && inst
+	if _, ok := iso.InstallImage(); !ok {
+		return false
+	}
+	for _, name := range efiBootNames {
+		if _, ok := iso.Find("efi/boot/" + name); ok {
+			return true
+		}
+	}
+	return false
 }
 
 func windowsISO(p string) (label string, ok bool, err error) {

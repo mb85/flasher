@@ -32,7 +32,7 @@ type Drive struct {
 func (d Drive) Name() string {
 	vendor, model := strings.TrimSpace(d.Vendor), strings.TrimSpace(d.Model)
 	// Many drives repeat the vendor in the model ("SanDisk SanDisk SSD PLUS").
-	if strings.HasPrefix(strings.ToLower(model), strings.ToLower(vendor)) {
+	if strings.HasPrefix(strings.ToLower(model+" "), strings.ToLower(vendor+" ")) {
 		vendor = ""
 	}
 	if n := strings.TrimSpace(vendor + " " + model); n != "" {

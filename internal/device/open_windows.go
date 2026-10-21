@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"golang.org/x/sys/windows"
 
@@ -21,6 +22,9 @@ const (
 	ioctlDiskDeleteDriveLayout = 0x0007C100
 	ioctlDiskUpdateProperties  = 0x00070140
 )
+
+// lockTimeout is how long to keep retrying a volume lock.
+const lockTimeout = 10 * time.Second
 
 // headSize is the region at the start of the disk that is written last.
 // Once a valid partition table and boot sector land there, Windows may
@@ -97,10 +101,20 @@ func lockVolume(v drives.Volume) (windows.Handle, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open volume %s: %w", volumeLabel(v), err)
 	}
+	// Explorer, indexing and antivirus often hold a newly mounted volume for
+	// a moment, so keep trying for a while before calling it busy.
 	var got uint32
-	if err := windows.DeviceIoControl(h, fsctlLockVolume, nil, 0, nil, 0, &got, nil); err != nil {
-		windows.CloseHandle(h)
-		return 0, fmt.Errorf("volume %s is in use; close any windows or programs using it: %w", volumeLabel(v), err)
+	deadline := time.Now().Add(lockTimeout)
+	for {
+		err := windows.DeviceIoControl(h, fsctlLockVolume, nil, 0, nil, 0, &got, nil)
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			windows.CloseHandle(h)
+			return 0, fmt.Errorf("volume %s is in use; close any windows or programs using it: %w", volumeLabel(v), err)
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 	if err := windows.DeviceIoControl(h, fsctlDismountVolume, nil, 0, nil, 0, &got, nil); err != nil {
 		windows.CloseHandle(h)

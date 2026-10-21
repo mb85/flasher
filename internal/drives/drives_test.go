@@ -56,6 +56,7 @@ func TestNames(t *testing.T) {
 		{Drive{Path: "/dev/sda", Vendor: "SanDisk", Model: "SanDisk SSD PLUS 240GB"}, "SanDisk SSD PLUS 240GB", "/dev/sda"},
 		{Drive{Path: `\\.\PhysicalDrive2`, Vendor: "Msft", Model: "Virtual Disk"}, "Msft Virtual Disk", "Disk 2"},
 		{Drive{Path: "/dev/sdc", Bus: "usb"}, "USB drive", "/dev/sdc"},
+		{Drive{Path: "/dev/loop0", Vendor: "Loop", Model: "loopdev.img"}, "Loop loopdev.img", "/dev/loop0"},
 		{Drive{Path: "/dev/sdd"}, "Unnamed drive", "/dev/sdd"},
 	} {
 		if got := c.d.Name(); got != c.name {
