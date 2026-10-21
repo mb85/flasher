@@ -100,8 +100,9 @@ func (a *App) imageStep() {
 		if a.img.Linux != nil {
 			NextAccessName("write_mode")
 			OptionGroup(&a.copyFiles, func() {
+				ModAttrs(Gap(6))
 				NextAccessName("write_as_is")
-				OptionButton("Write it as is (DD mode)", false)
+				OptionButton("Write it as is (dd mode)", false)
 				NextAccessName("copy_files")
 				OptionButton("Copy its files (ISO mode)", true)
 			})
