@@ -109,6 +109,8 @@ func Inspect(p string) (*Image, error) {
 	switch img.Compression {
 	case None:
 		img.Size = fi.Size()
+	case Xz:
+		img.Size = xzSize(f, fi.Size())
 	case Zip:
 		name, size, err := zipImage(f, fi.Size())
 		if err != nil {
