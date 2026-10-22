@@ -28,4 +28,4 @@ require (
 	golang.org/x/text v0.38.0 // indirect
 )
 
-replace go.hasen.dev/shirei => github.com/mb85/go-shirei v0.8.1-0.20261022094900-3f6c62e2511d
+replace go.hasen.dev/shirei => github.com/mb85/go-shirei v0.8.1-0.20261022100232-82f954eb5448

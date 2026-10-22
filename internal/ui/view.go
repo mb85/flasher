@@ -63,7 +63,7 @@ func (a *App) selectView() {
 }
 
 func step(n int, title string, highlight bool, body func()) {
-	Container(Attrs(Grow(1), Expand, Extrinsic, Clip, UseSurface(SurfacePanel), Pad(16), Gap(12), Corners(8), BorderWidth(1)), func() {
+	Container(Attrs(Grow(1), Expand, Extrinsic, Clip, UseSurface(SurfacePanel), Pad(16), Gap(12), Corners(12), BorderWidth(1)), func() {
 		// The card's width comes from the window, so hand it down as a
 		// max width; otherwise long labels would not wrap.
 		if w := GetResolvedWidth(); w > 0 {
@@ -91,13 +91,16 @@ func (a *App) imageStep() {
 		})
 		return
 	case a.img != nil:
-		Label(filepath.Base(a.img.Path), FontWeight(WeightSemibold))
-		Label(sentence(a.img.Description()), muted())
-		if a.img.Size >= 0 {
-			Label(units.Bytes(a.img.Size), muted())
-		} else {
-			Label(units.Bytes(a.img.FileSize)+" compressed", muted())
+		// The description already says when the image is compressed, and
+		// then only the file's own size is known.
+		size := units.Bytes(a.img.Size)
+		if a.img.Size < 0 {
+			size = units.Bytes(a.img.FileSize)
 		}
+		Container(Attrs(Gap(2)), func() {
+			Label(filepath.Base(a.img.Path), FontWeight(WeightSemibold))
+			Label(sentence(a.img.Description())+" · "+size, muted())
+		})
 		if a.img.Kind == source.KindWindowsISO {
 			Label("It will be written as a UEFI-bootable FAT32 installer.", muted())
 		}
@@ -150,7 +153,7 @@ func (a *App) driveStep() {
 	}
 	Container(Attrs(Gap(4), Expand), func() {
 		for _, d := range a.drives {
-			ContainerWithKey(d.Path, Attrs(Pad(8), Corners(6), Gap(2), Expand), func() {
+			ContainerWithKey(d.Path, Attrs(Pad(8), Corners(8), Gap(2), Expand), func() {
 				NextAccessName("drive")
 				sel := d.Path == a.selected
 				switch {
