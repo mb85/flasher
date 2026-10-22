@@ -134,3 +134,39 @@ func TestProblem(t *testing.T) {
 		t.Error("a drive that has disappeared must not be flashable")
 	}
 }
+
+func TestDragOverSnapshot(t *testing.T) {
+	a := &App{verify: true, drives: []drives.Drive{stick}}
+	r := Snapshot(t.Name(), "drag_over", 840, 460, func() {
+		SetDarkMode(false)
+		GetHost().FileDrops = true
+		GetInputState().FileDragOver = true
+		a.Root()
+	})
+	GetHost().FileDrops = false
+	GetInputState().FileDragOver = false
+	if r.Err != nil {
+		t.Fatal(r.Err)
+	}
+	if r.Status == SnapMismatch {
+		t.Fatalf("snapshot differs: %s", r.Actual)
+	}
+}
+
+func TestDropReadsImage(t *testing.T) {
+	drop := func(a *App) {
+		GetHost().WindowSize = Vec2{840, 460}
+		GetFrameInput().DroppedFiles = []string{"testdata/missing.img"}
+		RunFrameFn(a.Root)
+	}
+	a := &App{verify: true}
+	drop(a)
+	if !a.inspecting {
+		t.Error("a file dropped while choosing must be read as the image")
+	}
+	a = &App{verify: true, img: pi, drives: []drives.Drive{stick}, selected: stick.Path, confirming: true}
+	drop(a)
+	if a.inspecting {
+		t.Error("a drop while the confirmation is open must be ignored")
+	}
+}

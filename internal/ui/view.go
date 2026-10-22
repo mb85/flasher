@@ -25,6 +25,9 @@ func errText() TextStyleFn { return TextColorVec(CurrentColorScheme.List.Error) 
 // Root is the frame function.
 func (a *App) Root() {
 	a.checkFit()
+	if files := GetFrameInput().DroppedFiles; len(files) > 0 && a.takesDrops() {
+		a.inspect(files[0])
+	}
 	ModAttrs(UseSurface(SurfaceCanvas))
 	Container(Attrs(Viewport, Pad(24), Gap(18)), func() {
 		// Key each screen so its widgets never share identity with the
@@ -52,18 +55,22 @@ func (a *App) Root() {
 
 func (a *App) selectView() {
 	Container(Attrs(Row, Gap(16), Grow(1), Expand), func() {
-		step(1, "Image", a.imageStep)
-		step(2, "Drive", a.driveStep)
-		step(3, "Flash", a.flashStep)
+		// Files dragged over the window go to the image step.
+		step(1, "Image", a.takesDrops() && GetInputState().FileDragOver, a.imageStep)
+		step(2, "Drive", false, a.driveStep)
+		step(3, "Flash", false, a.flashStep)
 	})
 }
 
-func step(n int, title string, body func()) {
+func step(n int, title string, highlight bool, body func()) {
 	Container(Attrs(Grow(1), Expand, Extrinsic, Clip, UseSurface(SurfacePanel), Pad(16), Gap(12), Corners(8), BorderWidth(1)), func() {
 		// The card's width comes from the window, so hand it down as a
 		// max width; otherwise long labels would not wrap.
 		if w := GetResolvedWidth(); w > 0 {
 			ModAttrs(MaxWidth(w))
+		}
+		if highlight {
+			ModAttrs(BorderWidth(2), BorderColorVec(CurrentColorScheme.Progress.Fill))
 		}
 		Container(Attrs(Row, CrossMid, Gap(10)), func() {
 			Container(Attrs(FixSize(26, 26), Corners(13), BackgroundVec(CurrentColorScheme.Progress.Fill), Center), func() {
@@ -111,7 +118,12 @@ func (a *App) imageStep() {
 			}
 		}
 	default:
-		Label("Choose a disk image or ISO. Compressed images are fine.", muted())
+		// Only invite a drop where the platform delivers one (not X11).
+		if GetHost().FileDrops {
+			Label("Choose a disk image or ISO, or drop one here. Compressed images are fine.", muted())
+		} else {
+			Label("Choose a disk image or ISO. Compressed images are fine.", muted())
+		}
 	}
 	if a.imgErr != "" {
 		Label(sentence(a.imgErr), errText())

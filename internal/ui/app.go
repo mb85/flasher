@@ -212,6 +212,12 @@ func (a *App) inspect(path string) {
 	}()
 }
 
+// takesDrops reports whether a file dropped on the window would become the
+// image: only while choosing, with no dialog open or image being read.
+func (a *App) takesDrops() bool {
+	return a.phase == phaseSelect && !a.confirming && !a.browsing && !a.picking && !a.inspecting
+}
+
 // pickImage shows the native dialog, falling back to the in-app browser.
 func (a *App) pickImage() {
 	if a.picking {
