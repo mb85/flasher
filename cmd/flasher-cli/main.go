@@ -181,8 +181,8 @@ func flashCmd(args []string) error {
 	defer stop()
 	start := time.Now()
 	err = flash.Run(ctx, dev, p, flash.Options{Verify: !*noVerify, Progress: printProgress})
-	fmt.Println()
 	if err != nil {
+		fmt.Println()
 		summary, detail := flash.Explain(err)
 		if detail != "" {
 			summary += "\n  (" + detail + ")"
@@ -239,6 +239,11 @@ func confirm(q string) bool {
 }
 
 func printProgress(p flash.Progress) {
+	if p.Stage == flash.Done {
+		// Clear the progress line for the "Done in" summary.
+		fmt.Printf("\r%-60s\r", "")
+		return
+	}
 	line := fmt.Sprintf("%-9s %5.1f%%  %s", p.Stage, p.Fraction*100, units.Bytes(p.Bytes))
 	if p.BytesPerSec > 0 {
 		line += fmt.Sprintf("  %s/s", units.Bytes(int64(p.BytesPerSec)))
