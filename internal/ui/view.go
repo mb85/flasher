@@ -121,7 +121,7 @@ func (a *App) imageStep() {
 			}
 		}
 	default:
-		// Only invite a drop where the platform delivers one (not X11).
+		// Only invite a drop where the platform delivers one.
 		if GetHost().FileDrops {
 			Label("Choose a disk image or ISO, or drop one here. Compressed images are fine.", muted())
 		} else {
